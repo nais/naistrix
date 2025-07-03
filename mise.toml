@@ -1,0 +1,62 @@
+[tasks.all]
+description = "Run all tasks"
+depends = ['fmt', 'check', 'test']
+
+[tasks.fmt]
+description = "Format all go code using gofumpt"
+run = "go tool mvdan.cc/gofumpt -w ./"
+
+[tasks.ci-fmt]
+description = "Format all go code using gofumpt"
+run = """
+if ! go tool mvdan.cc/gofumpt -w ./; then
+  echo 'Failed to run `mise fmt`.'
+  exit 1
+fi
+
+if ! git diff --exit-code --name-only; then
+  echo 'The file(s) listed above are not formatted correctly. Please run `mise fmt` and commit the changes.'
+  exit 1
+fi
+"""
+
+[tasks.check]
+description = "Run all static analysis tools"
+depends = ['staticcheck', 'vulncheck', 'deadcode', 'gosec', 'vet']
+
+[tasks.staticcheck]
+description = "Run staticcheck"
+wait_for = ['fmt']
+run = "go tool honnef.co/go/tools/cmd/staticcheck ./..."
+
+[tasks.vulncheck]
+description = "Run govulncheck"
+wait_for = ['fmt']
+run = "go tool golang.org/x/vuln/cmd/govulncheck -show verbose ./..."
+
+[tasks.deadcode]
+description = "Run deadcode"
+wait_for = ['fmt']
+run = "go tool golang.org/x/tools/cmd/deadcode -test ./..."
+
+[tasks.gosec]
+description = "Run gosec"
+wait_for = ['fmt']
+run = "go tool github.com/securego/gosec/v2/cmd/gosec --exclude-generated -terse ./..."
+
+[tasks.vet]
+description = "Run go vet"
+wait_for = ['fmt']
+run = "go vet ./..."
+
+[tasks.test]
+wait_for = ['fmt']
+description = "Run tests"
+run = "go test -v --race --cover --coverprofile=cover.out ./..."
+
+[settings]
+pin = true
+
+[tools]
+git-cliff = "2.9.1"
+go = "1.24.4"

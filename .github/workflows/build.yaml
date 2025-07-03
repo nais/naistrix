@@ -1,0 +1,115 @@
+name: Build, test and release
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release-info:
+    name: Generate release info
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.generate.outputs.version }}
+      changelog: ${{ steps.generate.outputs.changelog }}
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install tooling
+        uses: jdx/mise-action@v2
+      - name: Generate release info
+        id: generate
+        run: |
+          version="$(git-cliff --bumped-version)"
+          echo "version=$version" >>"$GITHUB_OUTPUT"
+          echo "Bumped version: $version"
+          changelog="$(git-cliff \
+            --tag "$version" \
+            --github-repo "${{ github.repository }}" \
+            --github-token "${{ secrets.GITHUB_TOKEN }}" \
+            --unreleased \
+            --strip all \
+            -v)"
+          echo "changelog<<EOF" >>"$GITHUB_OUTPUT"
+          echo "$changelog" >>"$GITHUB_OUTPUT"
+          echo "EOF" >>"$GITHUB_OUTPUT"
+          
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo -n "PR comment with release info: "
+            if [[ -n "$changelog" ]]; then
+              pr_comment="# :pencil: Changelog preview
+          Below is a preview of the Changelog that will be added to the next release. \
+          Only commit messages that follow the [Conventional Commits specification](https://www.conventionalcommits.org/) will be included in the Changelog.
+          
+          $changelog"
+            else
+              pr_comment="# :disappointed: No release for you
+          There are no commits in your branch that follow the [Conventional Commits specification](https://www.conventionalcommits.org/), so no release will be created.
+
+          If you want to create a release from this pull request, please reword your commit messages to replace this message with a preview of a beautiful Changelog."
+            fi
+
+            echo -e "$pr_comment" | gh pr comment "${{ github.event.number }}" \
+              --edit-last --create-if-none \
+              --repo "${{ github.repository }}" \
+              --body-file=-
+          fi
+
+  checks:
+    strategy:
+      matrix:
+        mise_task: [deadcode, vulncheck, ci-fmt, staticcheck, test, vet]
+    name: |
+      Run mise task: ${{ matrix.mise_task }}
+    needs: [release-info]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Install tooling
+        uses: jdx/mise-action@v2
+        with:
+          cache: false
+      - name: mise run ${{ matrix.mise_task }}
+        run: |
+          mise run ${{ matrix.mise_task }}
+
+  # Used by GitHub to determine if all checks/builds have passed
+  branch-protection-checkpoint:
+    runs-on: ubuntu-latest
+    needs: [checks]
+    name: Branch protection checkpoint
+    steps:
+      - run: echo "All checks passed :rocket:"
+
+  tag-and-create-github-release:
+    if: github.ref == 'refs/heads/main' && needs.release-info.outputs.changelog != ''
+    name: Create new tag and GitHub release
+    runs-on: ubuntu-latest
+    needs: [release-info, checks]
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.release-info.outputs.version }}
+          body: ${{ needs.release-info.outputs.changelog }}
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Write summary
+        run: |
+          echo "## :rocket: Release ${{ needs.release-info.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "A new release is available over at https://github.com/${{ github.repository }}/releases/tag/${{ needs.release-info.outputs.version }}." >> $GITHUB_STEP_SUMMARY

@@ -1,3 +1,4 @@
+// Package naistrix provides an opinionated wrapper around the https://github.com/spf13/cobra library.
 package naistrix
 
 import (

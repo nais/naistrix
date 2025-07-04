@@ -8,6 +8,30 @@ import (
 	"github.com/nais/naistrix"
 )
 
+// Application with a single command that greets the user.
+func ExampleApplication() {
+	app := &naistrix.Application{
+		Name:  "example",
+		Title: "Example Application",
+		SubCommands: []*naistrix.Command{
+			{
+				Name:  "greet",
+				Title: "Greet the user",
+				Args: []naistrix.Argument{
+					{Name: "Name of the user"},
+				},
+				RunFunc: func(ctx context.Context, out naistrix.Output, args []string) error {
+					out.Println("Hello, " + strings.ToUpper(args[0]) + "!")
+					return nil
+				},
+			},
+		},
+	}
+
+	app.Run(context.Background(), naistrix.Stdout(), []string{"greet", "user"})
+	// Output: Hello, USER!
+}
+
 func TestApplicationValidation(t *testing.T) {
 	defer func() {
 		contains := "must have at least one command"

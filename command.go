@@ -2,6 +2,7 @@ package naistrix
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -241,7 +242,11 @@ func (c *Command) init(cmd string, out Output) {
 			}
 
 			if err := c.ValidateFunc(co.Context(), args); err != nil {
-				return fmt.Errorf("validation failed: %w", err)
+				var e Error
+				if errors.As(err, &e) {
+					return e
+				}
+				return Errorf("input validation failed: %v", err)
 			}
 			return nil
 		},

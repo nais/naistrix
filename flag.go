@@ -20,6 +20,12 @@ type AutoCompleter interface {
 	AutoComplete(ctx context.Context, args []string, toComplete string, flags any) (completions []string, activeHelp string)
 }
 
+// FileAutoCompleter is an interface that can be implemented by flag values to provide auto-completion functionality for
+// a set of file extensions.
+type FileAutoCompleter interface {
+	FileExtensions() (extensions []string)
+}
+
 func setupFlag(name, short, usage string, value any, flags *pflag.FlagSet) {
 	if len(short) > 1 {
 		panic("short flag must be a single character")
@@ -120,7 +126,8 @@ func setupFlags(cmd *cobra.Command, flags any, flagSet *pflag.FlagSet) {
 		actualValue := value.Addr().Interface()
 		setupFlag(flagName, flagShort, normalizeUsage(flagUsage), unwrap(actualValue), flagSet)
 
-		if v, ok := actualValue.(AutoCompleter); ok {
+		switch v := actualValue.(type) {
+		case AutoCompleter:
 			_ = cmd.RegisterFlagCompletionFunc(
 				flagName,
 				func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
@@ -131,7 +138,12 @@ func setupFlags(cmd *cobra.Command, flags any, flagSet *pflag.FlagSet) {
 					return completions, cobra.ShellCompDirectiveNoFileComp
 				},
 			)
-		} else {
+		case FileAutoCompleter:
+			_ = cmd.RegisterFlagCompletionFunc(
+				flagName,
+				autocompleteFiles(v.FileExtensions()),
+			)
+		default:
 			_ = cmd.RegisterFlagCompletionFunc(flagName, noAutocomplete())
 		}
 	}

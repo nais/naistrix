@@ -3,6 +3,7 @@ package naistrix
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -43,6 +44,7 @@ func autocomplete(autoCompleteFunc AutoCompleteFunc, autoCompleteFilesExtensions
 }
 
 func autocompleteFiles(ext []string) cobra.CompletionFunc {
+	slices.Sort(ext)
 	return func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
 		helpSuffix := ""
 		if num := len(ext); num > 0 {
@@ -53,7 +55,7 @@ func autocompleteFiles(ext []string) cobra.CompletionFunc {
 			helpSuffix = " (" + strings.Join(formatted[:num-1], ", ") + " or " + formatted[num-1] + ")"
 		}
 
-		ext = cobra.AppendActiveHelp(ext, fmt.Sprintf("Please choose one or more files%s.", helpSuffix))
+		ext = cobra.AppendActiveHelp(ext, fmt.Sprintf("Select a file%s.", helpSuffix))
 		return ext, cobra.ShellCompDirectiveFilterFileExt
 	}
 }

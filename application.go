@@ -6,13 +6,15 @@ import (
 	"fmt"
 	"iter"
 	"maps"
+	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
 
 // Application represents a CLI application with a set of commands.
 type Application struct {
-	// Name is the name of the application, used as the root command in the CLI.
+	// Name is the name of the application, used as the root command in the CLI. Can not contain spaces.
 	Name string
 
 	// Title is the title of the application, used as a short description for the help output.
@@ -30,15 +32,70 @@ type Application struct {
 
 	// cobraCmd is the internal cobra.Command that represents the application (the root command).
 	cobraCmd *cobra.Command
+
+	// ctx is the context used when running the application with the Run() method. If not set it defaults to
+	// context.Background().
+	ctx context.Context
+
+	// out is the output destination used when running the application with the Run() method. If not set it defaults to
+	// Stdout().
+	out Output
+
+	// args are the command line arguments passed to the application when running it with the Run() method. If not set
+	// it defaults to os.Args[1:].
+	args []string
+
+	// executedCommand is the internal cobra.Command that was executed when running the application with the Run()
+	// method.
+	executedCommand *cobra.Command
 }
 
-// Run executes the application with the provided context, output writer, and command-line arguments. Validation of the
-// application along with the validation of the commands is performed before executing the command's RunFunc. The value
-// of args should in most cases be os.Args[1:], but can be overridden for testing purposes. The method returns the names
-// of the executed command and its parent commands as a slice of strings, or an error if the command execution fails.
-func (a *Application) Run(ctx context.Context, out Output, args []string) ([]string, error) {
-	if len(a.SubCommands) == 0 {
-		panic("the application must have at least one command to be able to run")
+// RunOptionFunc is a function that can be used to set options for the application when running it.
+type RunOptionFunc func(*Application)
+
+// RunWithContext sets the context for the application. The default context is context.Background().
+func RunWithContext(ctx context.Context) RunOptionFunc {
+	return func(a *Application) {
+		a.ctx = ctx
+	}
+}
+
+// RunWithOutput sets the output destination for the application. The default output is Stdout().
+func RunWithOutput(out Output) RunOptionFunc {
+	return func(a *Application) {
+		a.out = out
+	}
+}
+
+// RunWithArgs sets the command line arguments for the application. The default is os.Args[1:].
+func RunWithArgs(args []string) RunOptionFunc {
+	return func(a *Application) {
+		a.args = args
+	}
+}
+
+// Run executes the application. Validation of the application along with the validation of the commands is performed
+// before executing the command's RunFunc. The method returns the names of the executed command and its parent commands
+// as a slice of strings, or an error if the command execution fails.
+func (a *Application) Run(opts ...RunOptionFunc) error {
+	if err := a.validate(); err != nil {
+		panic(err.Error())
+	}
+
+	for _, opt := range opts {
+		opt(a)
+	}
+
+	if a.ctx == nil {
+		a.ctx = context.Background()
+	}
+
+	if a.out == nil {
+		a.out = Stdout()
+	}
+
+	if a.args == nil {
+		a.args = os.Args[1:]
 	}
 
 	cobra.EnableTraverseRunHooks = true
@@ -51,8 +108,8 @@ func (a *Application) Run(ctx context.Context, out Output, args []string) ([]str
 		SilenceUsage:       true,
 		DisableSuggestions: true,
 	}
-	a.cobraCmd.SetArgs(args)
-	a.cobraCmd.SetOut(out)
+	a.cobraCmd.SetArgs(a.args)
+	a.cobraCmd.SetOut(a.out)
 
 	setupFlags(a.cobraCmd, a.StickyFlags, a.cobraCmd.PersistentFlags())
 
@@ -64,8 +121,9 @@ func (a *Application) Run(ctx context.Context, out Output, args []string) ([]str
 	}
 
 	commandsAndAliases := make([]string, 0)
+	usageTemplate := a.cobraCmd.UsageTemplate()
 	for _, sub := range a.SubCommands {
-		sub.init(a.Name, out)
+		sub.init(a.Name, a.out, usageTemplate)
 		a.cobraCmd.AddCommand(sub.cobraCmd)
 
 		commandsAndAliases = append(commandsAndAliases, sub.Name)
@@ -76,8 +134,32 @@ func (a *Application) Run(ctx context.Context, out Output, args []string) ([]str
 		panic(fmt.Sprintf("the application contains duplicate commands and/or aliases: %q", d))
 	}
 
-	executedCommand, err := a.cobraCmd.ExecuteContextC(ctx)
-	return commandNames(executedCommand), err
+	executedCommand, err := a.cobraCmd.ExecuteContextC(a.ctx)
+	a.executedCommand = executedCommand
+	return err
+}
+
+// ExecutedCommand returns the name of the command that was executed, along with the parent command names and the
+// application name. Only valid commands are included, so if the application was run with an unknown command, only
+// known command names up until the unknown one are included.
+func (a *Application) ExecutedCommand() []string {
+	if a.executedCommand == nil {
+		return nil
+	}
+	return strings.Split(a.executedCommand.CommandPath(), " ")
+}
+
+// validate checks that the application is valid. This is called when trying to Run() the application.
+func (a *Application) validate() error {
+	if name := strings.TrimSpace(a.Name); name == "" || strings.Contains(name, " ") {
+		return fmt.Errorf("application name must not be empty and must not contain spaces, got: %q", a.Name)
+	}
+
+	if len(a.SubCommands) == 0 {
+		return fmt.Errorf("the application must have at least one command to be able to run")
+	}
+
+	return nil
 }
 
 // duplicate returns the first duplicate value found in the provided slice, or an empty string if no duplicates are
@@ -109,13 +191,4 @@ func allGroups(cmds []*Command) iter.Seq[string] {
 	rec(cmds, groups)
 
 	return maps.Keys(groups)
-}
-
-// commandNames returns the names of the command and all its parent commands as a slice of strings.
-func commandNames(cmd *cobra.Command) []string {
-	if cmd == nil {
-		return nil
-	}
-
-	return append(commandNames(cmd.Parent()), cmd.Name())
 }

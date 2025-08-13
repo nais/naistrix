@@ -11,6 +11,7 @@ tool (
 )
 
 require (
+	github.com/MakeNowJust/heredoc v1.0.0
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/google/go-cmp v0.7.0
 	github.com/pterm/pterm v0.12.81

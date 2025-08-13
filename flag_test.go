@@ -35,7 +35,7 @@ func TestSetupFlag(t *testing.T) {
 				t.Fatalf("expected panic message to contain %q, got: %q", contains, msg)
 			}
 		}()
-		_, _ = app.Run(ctx, naistrix.Discard(), []string{})
+		_ = app.Run(naistrix.RunWithContext(ctx), naistrix.RunWithOutput(naistrix.Discard()))
 	})
 
 	t.Run("non-pointer", func(t *testing.T) {
@@ -62,7 +62,7 @@ func TestSetupFlag(t *testing.T) {
 				t.Fatalf("expected panic message to contain %q, got: %q", contains, msg)
 			}
 		}()
-		_, _ = app.Run(ctx, naistrix.Discard(), []string{})
+		_ = app.Run(naistrix.RunWithContext(ctx), naistrix.RunWithOutput(naistrix.Discard()))
 	})
 
 	t.Run("invalid short flag", func(t *testing.T) {
@@ -90,7 +90,7 @@ func TestSetupFlag(t *testing.T) {
 				t.Fatalf("expected panic message to contain %q, got: %q", contains, msg)
 			}
 		}()
-		_, _ = app.Run(ctx, naistrix.Discard(), []string{})
+		_ = app.Run(naistrix.RunWithContext(ctx), naistrix.RunWithOutput(naistrix.Discard()))
 	})
 
 	t.Run("unknown flag type", func(t *testing.T) {
@@ -118,6 +118,6 @@ func TestSetupFlag(t *testing.T) {
 				t.Fatalf("expected panic message to contain %q, got: %q", contains, msg)
 			}
 		}()
-		_, _ = app.Run(ctx, naistrix.Discard(), []string{})
+		_ = app.Run(naistrix.RunWithContext(ctx), naistrix.RunWithOutput(naistrix.Discard()))
 	})
 }

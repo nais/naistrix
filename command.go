@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/MakeNowJust/heredoc"
 	"github.com/spf13/cobra"
 )
 
@@ -54,7 +55,7 @@ type Command struct {
 	// Group places the command in a specific group. This is mainly used for grouping of commands in the help text.
 	Group string
 
-	// SubCommands adds sub-commands to the command. The SubCommands and RunFunc fields are mutually exclusive.
+	// SubCommands adds subcommands to the command. The SubCommands and RunFunc fields are mutually exclusive.
 	SubCommands []*Command
 
 	// Args are the positional arguments to the command. The arguments will be injected into RunFunc. The command will
@@ -133,18 +134,18 @@ func (c *Command) cobraUse() string {
 
 // validateArgs validates the positional arguments for the command, and prepends a ValidateFunc to the command that will
 // make sure the correct amount of arguments is sent to the command when executed by the end-user.
-func (c *Command) validateArgs() {
+func (c *Command) validateArgs() error {
 	hasRepeatable := false
 
 	for i, arg := range c.Args {
 		if arg.Name == "" {
-			panic(fmt.Sprintf("argument name (%+v) cannot be empty", arg))
+			return fmt.Errorf("argument name (%+v) cannot be empty", arg)
 		}
 
 		if arg.Repeatable {
 			hasRepeatable = true
 			if i != len(c.Args)-1 {
-				panic(fmt.Sprintf("a repeatable argument (%+v) must be the last argument for the command", arg))
+				return fmt.Errorf("a repeatable argument (%+v) must be the last argument for the command", arg)
 			}
 		}
 	}
@@ -171,20 +172,13 @@ func (c *Command) validateArgs() {
 			return existingValidateFunc(ctx, args)
 		}
 	}
+
+	return nil
 }
 
 // cobraShort generates the short description for the cobra.Command.
 func (c *Command) cobraShort() string {
 	title := strings.TrimSpace(c.Title)
-
-	if title == "" {
-		panic(fmt.Sprintf("command %q is missing a title", c.Name))
-	}
-
-	if strings.Contains(title, "\n") {
-		panic(fmt.Sprintf("the title for command %q contains newline", c.Name))
-	}
-
 	if !strings.HasSuffix(title, ".") {
 		title = title + "."
 	}
@@ -205,25 +199,68 @@ func (c *Command) cobraLong(short string) string {
 // cobraRun wraps the RunFunc of the command into a function that can be used by the underlying cobra.Command.
 func (c *Command) cobraRun(out Output) func(*cobra.Command, []string) error {
 	if c.RunFunc == nil {
-		return nil
+		return func(cmd *cobra.Command, args []string) error {
+			if err := cobra.NoArgs(cmd, args); err != nil {
+				subCommands := "Available commands:\n"
+				for _, s := range cmd.Commands() {
+					subCommands = subCommands + "  " + s.Name() + "\n"
+				}
+
+				return fmt.Errorf(
+					strings.TrimSpace(heredoc.Doc(`
+						%w
+
+						Usage:
+						  %s <command> [flags]
+
+						%s
+
+						Use "%s -h" for more information.
+					`)),
+					err,
+					cmd.CommandPath(),
+					strings.TrimSpace(subCommands),
+					cmd.CommandPath(),
+				)
+			}
+
+			return cmd.Help()
+		}
 	}
 
-	return func(co *cobra.Command, args []string) error {
-		return c.RunFunc(co.Context(), out, args)
+	return func(cmd *cobra.Command, args []string) error {
+		return c.RunFunc(cmd.Context(), out, args)
 	}
 }
 
-// init validates and initializes the cobra.Command.
-func (c *Command) init(cmd string, out Output) {
+// validate checks that the command is valid.
+func (c *Command) validate() error {
 	if strings.TrimSpace(c.Name) == "" {
-		panic("command name cannot be empty")
+		return fmt.Errorf("command name cannot be empty")
 	}
 
 	if strings.Contains(c.Name, " ") {
-		panic(fmt.Sprintf("command name cannot contain spaces: %v", c.Name))
+		return fmt.Errorf("command name %q contain spaces", c.Name)
 	}
 
-	c.validateArgs()
+	if title := strings.TrimSpace(c.Title); title == "" {
+		return fmt.Errorf("command %q is missing a title", c.Name)
+	} else if strings.Contains(title, "\n") {
+		return fmt.Errorf("title for command %q contains newline", c.Name)
+	}
+
+	if (c.RunFunc == nil && len(c.SubCommands) == 0) || (c.RunFunc != nil && len(c.SubCommands) > 0) {
+		return fmt.Errorf("either RunFunc or SubCommands must be set for command: %v", c.Name)
+	}
+
+	return c.validateArgs()
+}
+
+// init validates and initializes the cobra.Command.
+func (c *Command) init(cmd string, out Output, usageTemplate string) {
+	if err := c.validate(); err != nil {
+		panic(err.Error())
+	}
 
 	cmd = cmd + " " + c.Name
 	short := c.cobraShort()
@@ -252,12 +289,23 @@ func (c *Command) init(cmd string, out Output) {
 		},
 	}
 
+	if c.RunFunc == nil {
+		// The internal cobraCmd will always be runnable since we are hijacking the RunE function to make sure an error
+		// is returned if an unknown subcommand is invoked. Because of this the usage template will always treat the
+		// command as runnable.
+		c.cobraCmd.SetUsageTemplate(strings.ReplaceAll(usageTemplate, "{{if .Runnable}}", "{{if false}}"))
+	} else {
+		// We must set the usage template so that subcommands does not use the usage template of the parent command,
+		// causing child commands to be rendered as "not runnable" even though they are.
+		c.cobraCmd.SetUsageTemplate(usageTemplate)
+	}
+
 	setupFlags(c.cobraCmd, c.Flags, c.cobraCmd.Flags())
 	setupFlags(c.cobraCmd, c.StickyFlags, c.cobraCmd.PersistentFlags())
 
 	commandsAndAliases := make([]string, 0)
 	for _, sub := range c.SubCommands {
-		sub.init(cmd, out)
+		sub.init(cmd, out, usageTemplate)
 		c.cobraCmd.AddCommand(sub.cobraCmd)
 
 		commandsAndAliases = append(commandsAndAliases, sub.Name)

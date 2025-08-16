@@ -1,6 +1,6 @@
 [tasks.all]
 description = "Run all tasks"
-depends = ['fmt', 'check', 'test']
+depends = ['fmt', 'build', 'check', 'test']
 
 [tasks.fmt]
 description = "Format all go code using gofumpt"
@@ -19,6 +19,11 @@ if ! git diff --exit-code --name-only; then
   exit 1
 fi
 """
+
+[tasks.build]
+description = "Build go code"
+wait_for = ['fmt']
+run = "go build ./..."
 
 [tasks.check]
 description = "Run all static analysis tools"

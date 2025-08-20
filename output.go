@@ -11,10 +11,10 @@ type Output interface {
 	io.Writer
 
 	// Println writes a line of output to the destination, appending a newline at the end. Spaces are added between
-	// arguments, similar to fmt.Fprintln.
+	// arguments.
 	Println(a ...any)
 
-	// Printf writes formatted output to the destination, similar to fmt.Fprintf.
+	// Printf writes formatted output to the destination.
 	Printf(format string, a ...any)
 }
 

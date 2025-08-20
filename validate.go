@@ -13,7 +13,7 @@ type ValidateFunc func(ctx context.Context, args []string) error
 func ValidateExactArgs(n int) ValidateFunc {
 	return func(_ context.Context, args []string) error {
 		if len(args) != n {
-			return Errorf("Expected exactly %d arguments, got %d", n, len(args))
+			return Errorf("Expected exactly %d argument%s, got %d", n, plural(n), len(args))
 		}
 
 		return nil
@@ -24,9 +24,16 @@ func ValidateExactArgs(n int) ValidateFunc {
 func ValidateMinArgs(n int) ValidateFunc {
 	return func(_ context.Context, args []string) error {
 		if len(args) < n {
-			return Errorf("Expected at least %d arguments, got %d", n, len(args))
+			return Errorf("Expected at least %d argument%s, got %d", n, plural(n), len(args))
 		}
 
 		return nil
 	}
+}
+
+func plural(n int) string {
+	if n == 1 {
+		return ""
+	}
+	return "s"
 }

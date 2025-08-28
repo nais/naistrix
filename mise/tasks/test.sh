@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+#MISE description="Run tests"
+go test -v --race --cover --coverprofile=cover.out ./...

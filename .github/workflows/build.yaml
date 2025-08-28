@@ -21,11 +21,11 @@ jobs:
       pull-requests: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Install tooling
-        uses: jdx/mise-action@v2
+        uses: jdx/mise-action@v3
       - name: Generate release info
         id: generate
         run: |
@@ -67,16 +67,16 @@ jobs:
   checks:
     strategy:
       matrix:
-        mise_task: [deadcode, vulncheck, ci-fmt, staticcheck, test, vet]
+        mise_task: [check:deadcode, check:govulncheck, check:staticcheck, check:govet, fmt:ci, test]
     name: |
       Run mise task: ${{ matrix.mise_task }}
     needs: [release-info]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Install tooling
-        uses: jdx/mise-action@v2
+        uses: jdx/mise-action@v3
         with:
           cache: false
       - name: mise run ${{ matrix.mise_task }}
@@ -100,9 +100,9 @@ jobs:
       contents: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Create GitHub release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.release-info.outputs.version }}
           body: ${{ needs.release-info.outputs.changelog }}

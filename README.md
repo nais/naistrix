@@ -49,7 +49,7 @@ The repository contains a [`commit-msg`](script/semantic-commit-hook.sh) git hoo
 ln -s ../../script/semantic-commit-hook.sh .git/hooks/commit-msg
 ```
 
-There are also several [mise tasks](mise.toml) that you can use to validate your changes. See all available tasks by running:
+There are also several mise tasks that you can use to validate your changes. See all available tasks by running:
 
 ```bash
 mise run

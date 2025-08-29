@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+
+	"github.com/nais/naistrix/output"
 )
 
 // Output is an interface that defines methods for writing output to a destination.
@@ -16,6 +18,12 @@ type Output interface {
 
 	// Printf writes formatted output to the destination.
 	Printf(format string, a ...any)
+
+	// Table creates a new table that can be rendered to the destination.
+	Table(opts ...output.TableOptionFunc) *output.Table
+
+	// JSON creates a new JSON output that can be rendered to the destination.
+	JSON(opts ...output.JSONOptionFunc) *output.JSON
 }
 
 type writer struct {
@@ -32,6 +40,14 @@ func (w *writer) Printf(format string, a ...any) {
 
 func (w *writer) Write(p []byte) (n int, err error) {
 	return w.w.Write(p)
+}
+
+func (w *writer) Table(opts ...output.TableOptionFunc) *output.Table {
+	return output.NewTable(w, opts...)
+}
+
+func (w *writer) JSON(opts ...output.JSONOptionFunc) *output.JSON {
+	return output.NewJSON(w, opts...)
 }
 
 func NewWriter(w io.Writer) Output {

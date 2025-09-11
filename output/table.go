@@ -89,25 +89,7 @@ func (t *Table) convert(v any) (pterm.TableData, error) {
 			row = row.Elem()
 		}
 
-		// TODO: extract below to function
-
-		fields := reflect.TypeOf(row.Interface())
-		values := reflect.ValueOf(row.Interface())
-
-		cols := make([]string, 0)
-		for i := range fields.NumField() {
-			if !fields.Field(i).IsExported() {
-				continue
-			}
-
-			if fields.Field(i).Tag.Get("hidden") == "true" && !t.showHidden {
-				continue
-			}
-
-			cols = append(cols, getStringValue(values.Field(i)))
-		}
-
-		td = append(td, cols)
+		td = append(td, columnsInRow(row, t.showHidden))
 	}
 
 	return td, nil
@@ -152,6 +134,29 @@ func (t *Table) extractHeaders(v reflect.Value) ([]string, error) {
 	return headers, nil
 }
 
+// columnsInRow returns a slice of strings representing the values of the exported fields (the columns) in the provided
+// struct value (the row).
+func columnsInRow(row reflect.Value, showHidden bool) []string {
+	fields := reflect.TypeOf(row.Interface())
+	values := reflect.ValueOf(row.Interface())
+
+	cols := make([]string, 0)
+	for i := range fields.NumField() {
+		if !fields.Field(i).IsExported() {
+			continue
+		}
+
+		if fields.Field(i).Tag.Get("hidden") == "true" && !showHidden {
+			continue
+		}
+
+		cols = append(cols, getStringValue(values.Field(i)))
+	}
+
+	return cols
+}
+
+// getStringValue returns the string representation of the provided reflect.Value.
 func getStringValue(v reflect.Value) string {
 	if v.Kind() == reflect.Ptr {
 		v = v.Elem()

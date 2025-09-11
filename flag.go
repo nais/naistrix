@@ -143,8 +143,6 @@ func setupFlags(cmd *cobra.Command, flags any, flagSet *pflag.FlagSet) {
 				flagName,
 				autocompleteFiles(v.FileExtensions()),
 			)
-		default:
-			_ = cmd.RegisterFlagCompletionFunc(flagName, noAutocomplete())
 		}
 	}
 }

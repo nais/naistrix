@@ -110,6 +110,7 @@ func (a *Application) Run(opts ...RunOptionFunc) error {
 	}
 	a.cobraCmd.SetArgs(a.args)
 	a.cobraCmd.SetOut(a.out)
+	a.cobraCmd.CompletionOptions.SetDefaultShellCompDirective(cobra.ShellCompDirectiveNoFileComp)
 
 	setupFlags(a.cobraCmd, a.StickyFlags, a.cobraCmd.PersistentFlags())
 

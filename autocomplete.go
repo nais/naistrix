@@ -18,20 +18,13 @@ import (
 // string that will be used as active help text in the shell while performing auto-complete.
 type AutoCompleteFunc func(ctx context.Context, args []string, toComplete string) (completions []string, activeHelp string)
 
-// TODO: no need for this once the `SetDefaultShellCompDirective()` function is available in cobra (>v1.9.1)
-func noAutocomplete() cobra.CompletionFunc {
-	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-		return nil, cobra.ShellCompDirectiveNoFileComp
-	}
-}
-
 func autocomplete(autoCompleteFunc AutoCompleteFunc, autoCompleteFilesExtensions []string) cobra.CompletionFunc {
 	if len(autoCompleteFilesExtensions) > 0 {
 		return autocompleteFiles(autoCompleteFilesExtensions)
 	}
 
 	if autoCompleteFunc == nil {
-		return noAutocomplete()
+		return nil
 	}
 
 	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {

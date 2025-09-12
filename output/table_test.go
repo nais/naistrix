@@ -17,7 +17,7 @@ func TestTable_InvalidData(t *testing.T) {
 			t.Fatal("expected error")
 		}
 
-		if contains := "must be a slice"; !strings.Contains(err.Error(), contains) {
+		if contains := "non-empty slice"; !strings.Contains(err.Error(), contains) {
 			t.Fatalf("expected error to contain %q, got: %v", contains, err)
 		}
 	})
@@ -46,18 +46,35 @@ func TestTable_InvalidData(t *testing.T) {
 }
 
 func TestTable_ValidData(t *testing.T) {
-	var buf bytes.Buffer
-	table := output.NewTable(&buf, output.TableWithShowHiddenColumns())
+	t.Run("slice of structs", func(t *testing.T) {
+		var buf bytes.Buffer
+		table := output.NewTable(&buf, output.TableWithShowHiddenColumns())
 
-	data := []struct {
-		Name string `heading:"Full Name" hidden:"false"`
-		Age  int    `hidden:"true"`
-	}{
-		{Name: "Alice", Age: 30},
-		{Name: "Bob", Age: 25},
-	}
+		data := []struct {
+			Name string `heading:"Full Name" hidden:"false"`
+			Age  int    `hidden:"true"`
+		}{
+			{Name: "Alice", Age: 30},
+			{Name: "Bob", Age: 25},
+		}
 
-	if err := table.Render(data); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+		if err := table.Render(data); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("slice of string slices", func(t *testing.T) {
+		var buf bytes.Buffer
+		table := output.NewTable(&buf)
+
+		data := [][]string{
+			{"Name", "Age"},
+			{"Alice", "30"},
+			{"Bob", "25"},
+		}
+
+		if err := table.Render(data); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
 }

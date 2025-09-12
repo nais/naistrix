@@ -1,6 +1,7 @@
 package output
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"reflect"
@@ -21,14 +22,16 @@ func TableWithShowHiddenColumns() TableOptionFunc {
 
 type Table struct {
 	showHidden   bool
-	tablePrinter *pterm.TablePrinter
+	tablePrinter pterm.TablePrinter
+	writer       io.Writer
 }
 
 // NewTable creates a new Table that will write to the provided io.Writer. The table can be configured using the
 // available TableOptionFunc functions.
 func NewTable(w io.Writer, opts ...TableOptionFunc) *Table {
 	t := &Table{
-		tablePrinter: pterm.DefaultTable.WithWriter(w),
+		tablePrinter: pterm.DefaultTable,
+		writer:       w,
 	}
 
 	for _, opt := range opts {
@@ -38,34 +41,55 @@ func NewTable(w io.Writer, opts ...TableOptionFunc) *Table {
 	return t
 }
 
-// Render will render the table with the passed data. The data needs to be a slice of structs, and all exported fields
-// in the struct will be added as columns. The field names will be used as headers, and can be overridden using a
-// `heading` field tag. Fields can be hidden using a `hidden` field tag set to "true". To show hidden fields, use the
-// TableWithShowHiddenColumns option when creating the table.
-func (t *Table) Render(v any) error {
-	tableData, err := t.convert(v)
+// Render will render the table with the passed data. The data needs to be a slice of structs, or a slice of string
+// slices.
+//
+// If a slice of structs is used, all exported fields in the provided struct will be added as columns. The field names
+// will be used as headers, and can be overridden using a `heading` field tag. Fields can be hidden using a `hidden`
+// field tag set to "true". To show hidden fields, use the TableWithShowHiddenColumns option when creating the table.
+//
+// If a slice of string slices is used, the first string slice will be used for headings, and the remaining slices as
+// rows. It is not possible to have hidden columns when using this method.
+func (t *Table) Render(data any) error {
+	tableData, err := t.convert(data)
 	if err != nil {
 		return err
 	}
 
-	return t.tablePrinter.
+	var buf bytes.Buffer
+	err = t.tablePrinter.
+		WithWriter(&buf).
 		WithHasHeader(true).
 		WithHeaderRowSeparator("-").
 		WithData(tableData).
 		Render()
-}
-
-// convert converts the provided data into pterm.TableData. The data must be a slice of structs, and the struct must
-// have at least one exported field.
-func (t *Table) convert(v any) (pterm.TableData, error) {
-	d := reflect.ValueOf(v)
-
-	if d.Kind() != reflect.Slice {
-		return nil, fmt.Errorf("data must be a slice, got %T", v)
+	if err != nil {
+		return err
 	}
 
-	if d.Len() == 0 {
-		return nil, fmt.Errorf("data slice is empty")
+	// fix double newlines added by pterm
+	b := bytes.TrimRight(buf.Bytes(), "\n")
+	if _, err := t.writer.Write(append(b, '\n')); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// convert converts the provided data into pterm.TableData.
+func (t *Table) convert(v any) (pterm.TableData, error) {
+	vt := reflect.TypeOf(v)
+	d := reflect.ValueOf(v)
+	if vt.Kind() != reflect.Slice || d.Len() == 0 {
+		return nil, fmt.Errorf("data must be a non-empty slice, got %T", v)
+	}
+
+	if elem := vt.Elem(); elem.Kind() == reflect.Slice && elem.Elem().Kind() == reflect.String {
+		if d, ok := v.([][]string); ok {
+			return d, nil
+		}
+
+		return nil, fmt.Errorf("unable to convert data")
 	}
 
 	// extract headers from the first struct in the slice

@@ -176,9 +176,7 @@ func (a *Application) AddGlobalFlags(flags any) error {
 	return nil
 }
 
-// Run executes the application. Validation of the application along with the validation of the commands is performed
-// before executing the command's RunFunc. The method returns the names of the executed command and its parent commands
-// as a slice of strings, or an error if the command execution fails.
+// Run executes the application. At least one command must be registered using the AddCommand method.
 func (a *Application) Run(opts ...RunOptionFunc) error {
 	if len(a.commands) == 0 {
 		return fmt.Errorf("the application must have at least one command to be able to run")
@@ -207,7 +205,7 @@ func (a *Application) Run(opts ...RunOptionFunc) error {
 
 // ExecutedCommand returns the name of the command that was executed, along with the parent command names and the
 // application name. Only valid commands are included, so if the application was run with an unknown command, only
-// known command names up until the unknown one are included.
+// known command names up until the unknown one are included. Will return nil if the application has not been run yet.
 func (a *Application) ExecutedCommand() []string {
 	if a.executedCommand == nil {
 		return nil

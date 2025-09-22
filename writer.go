@@ -40,8 +40,6 @@ func (w *OutputWriter) Warnln(a ...any) {
 	pterm.Warning.WithWriter(w.writer).Println(a...)
 }
 
-//
-
 // Warnf writes formatted warning output to the destination. This outputs in all verbosity levels.
 func (w *OutputWriter) Warnf(format string, a ...any) {
 	pterm.Warning.WithWriter(w.writer).Printf(format, a...)

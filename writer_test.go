@@ -1,6 +1,7 @@
 package naistrix_test
 
 import (
+	"bytes"
 	"context"
 	"strings"
 	"testing"
@@ -42,7 +43,7 @@ func TestOutputWriter_ConditionalOutput(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var buf strings.Builder
+			var buf bytes.Buffer
 			app, _, err := naistrix.NewApplication("app", "title", "v0.0.0", naistrix.ApplicationWithWriter(&buf))
 			if err != nil {
 				t.Fatalf("unable to create application: %v", err)
@@ -85,7 +86,7 @@ func TestOutputWriter_OutputStyles(t *testing.T) {
 	pterm.RawOutput = true
 	defer func() { pterm.RawOutput = false }()
 
-	var buf strings.Builder
+	var buf bytes.Buffer
 	app, _, err := naistrix.NewApplication("app", "title", "v0.0.0", naistrix.ApplicationWithWriter(&buf))
 	if err != nil {
 		t.Fatalf("unable to create application: %v", err)

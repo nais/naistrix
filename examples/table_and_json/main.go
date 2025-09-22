@@ -42,25 +42,35 @@ func main() {
 		data:  "some other internal data",
 	}}
 
-	app := &naistrix.Application{
-		Name:  "example",
-		Title: "Example application",
-		SubCommands: []*naistrix.Command{{
+	app, _, err := naistrix.NewApplication(
+		"example",
+		"Example application with table output",
+		"v0.0.0",
+	)
+	if err != nil {
+		fmt.Printf("error when creating application: %v\n", err)
+		os.Exit(1)
+	}
+
+	err = app.AddCommand(
+		&naistrix.Command{
 			Name:  "show",
 			Title: "Show users.",
-			RunFunc: func(_ context.Context, out naistrix.Output, _ []string) error {
+			RunFunc: func(_ context.Context, out *naistrix.OutputWriter, _ []string) error {
 				return out.Table().Render(users)
 			},
-		}, {
+		},
+		&naistrix.Command{
 			Name:  "show-full",
 			Title: "Show users with hidden columns.",
-			RunFunc: func(_ context.Context, out naistrix.Output, _ []string) error {
+			RunFunc: func(_ context.Context, out *naistrix.OutputWriter, _ []string) error {
 				return out.Table(output.TableWithShowHiddenColumns()).Render(users)
 			},
-		}, {
+		},
+		&naistrix.Command{
 			Name:  "show-simple",
 			Title: "Render a slice of string slices as a table.",
-			RunFunc: func(_ context.Context, out naistrix.Output, _ []string) error {
+			RunFunc: func(_ context.Context, out *naistrix.OutputWriter, _ []string) error {
 				data := [][]string{
 					{"Name", "Email", "Age"}, // first row is used as headers
 					{"Alice", "alice@example.com", "30"},
@@ -68,7 +78,11 @@ func main() {
 				}
 				return out.Table().Render(data)
 			},
-		}},
+		},
+	)
+	if err != nil {
+		fmt.Printf("error when adding command: %v\n", err)
+		os.Exit(1)
 	}
 
 	if err := app.Run(); err != nil {

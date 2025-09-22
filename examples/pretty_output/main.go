@@ -20,11 +20,21 @@ func main() {
 	}
 
 	err = app.AddCommand(&naistrix.Command{
-		Name:  "greet",
-		Title: "Greet the user",
-		Args:  []naistrix.Argument{{Name: "user_name"}},
+		Name:  "run",
+		Title: "Run a command",
 		RunFunc: func(_ context.Context, out *naistrix.OutputWriter, args []string) error {
-			out.Println("Hello, " + args[0] + "!")
+			// Messages with labels / colors
+
+			out.Infoln("An informational message.")
+			out.Warnln("A warning message.")
+			out.Errorln("An error message.")
+
+			// Output based on verbosity levels
+
+			out.Verboseln("A verbose message, only shown when the application is run with -v or more.")
+			out.Debugln("A debug message, only shown when the application is run with -vv or more.")
+			out.Traceln("A trace message, only shown when the application is run with -vvv or more.")
+
 			return nil
 		},
 	})

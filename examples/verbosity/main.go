@@ -20,11 +20,13 @@ func main() {
 	}
 
 	err = app.AddCommand(&naistrix.Command{
-		Name:  "greet",
-		Title: "Greet the user",
-		Args:  []naistrix.Argument{{Name: "user_name"}},
+		Name:  "run",
+		Title: "Run a command",
 		RunFunc: func(_ context.Context, out *naistrix.OutputWriter, args []string) error {
-			out.Println("Hello, " + args[0] + "!")
+			out.Println("Some regular message, always shown.")
+			out.Verboseln("Some verbose message, shown with -v or more.")
+			out.Debugln("Some debug message, shown with -vv or more.")
+			out.Traceln("Some trace message, shown with -vvv or more.")
 			return nil
 		},
 	})

@@ -5,7 +5,7 @@ import (
 	"io"
 )
 
-const defaultJSONIdent = "  "
+const defaultJSONIndent = "  "
 
 // JSONOptionFunc is a function that can be used to configure the JSON renderer.
 type JSONOptionFunc func(*JSON)
@@ -34,7 +34,7 @@ type JSON struct {
 func NewJSON(w io.Writer, opts ...JSONOptionFunc) *JSON {
 	j := &JSON{
 		writer:     w,
-		indentChar: defaultJSONIdent,
+		indentChar: defaultJSONIndent,
 	}
 
 	for _, opt := range opts {

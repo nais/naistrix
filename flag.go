@@ -12,6 +12,34 @@ import (
 	"github.com/spf13/pflag"
 )
 
+const (
+	OutputVerbosityLevelNormal Count = iota
+	OutputVerbosityLevelVerbose
+	OutputVerbosityLevelDebug
+	OutputVerbosityLevelTrace
+)
+
+// GlobalFlags defines flags that are global to all commands.
+type GlobalFlags struct {
+	// VerboseLevel indicates the verbosity level of the application.
+	VerboseLevel Count `name:"verbose" short:"v" usage:"Set verbosity level. Use -v for verbose, -vv for debug, -vvv for trace."`
+}
+
+// IsVerbose checks if the application is running in verbose mode (-v).
+func (f GlobalFlags) IsVerbose() bool {
+	return f.VerboseLevel > OutputVerbosityLevelNormal
+}
+
+// IsDebug checks if the application is running in debug mode (-vv).
+func (f GlobalFlags) IsDebug() bool {
+	return f.VerboseLevel > OutputVerbosityLevelVerbose
+}
+
+// IsTrace checks if the application is running in trace mode (-vvv or higher).
+func (f GlobalFlags) IsTrace() bool {
+	return f.VerboseLevel > OutputVerbosityLevelDebug
+}
+
 // Count is a type used for flags that when repeated increment a counter.
 type Count int
 
@@ -26,9 +54,13 @@ type FileAutoCompleter interface {
 	FileExtensions() (extensions []string)
 }
 
-func setupFlag(name, short, usage string, value any, flags *pflag.FlagSet) {
+func setupFlag(name, short, usage string, value any, flags *pflag.FlagSet) error {
 	if len(short) > 1 {
-		panic("short flag must be a single character")
+		return fmt.Errorf("short flag must be a single character")
+	}
+
+	if f := flags.Lookup(name); f != nil {
+		return fmt.Errorf("duplicate flag name: %q", name)
 	}
 
 	switch ptr := value.(type) {
@@ -77,17 +109,19 @@ func setupFlag(name, short, usage string, value any, flags *pflag.FlagSet) {
 			flags.CountVarP(intPtr, name, short, usage)
 		}
 	default:
-		panic(fmt.Sprintf("unknown flag type: %T", value))
+		return fmt.Errorf("unknown flag type: %T", value)
 	}
+
+	return nil
 }
 
-func setupFlags(cmd *cobra.Command, flags any, flagSet *pflag.FlagSet) {
+func setupFlags(cmd *cobra.Command, flags any, flagSet *pflag.FlagSet) error {
 	if flags == nil {
-		return
+		return nil
 	}
 
-	if !isValidFlags(flags) {
-		panic(fmt.Sprintf("expected flags to be a pointer to a struct, got %T", flags))
+	if err := validateFlags(flags); err != nil {
+		return fmt.Errorf("invalid flags: %w", err)
 	}
 
 	re := regexp.MustCompile(`\|([^|]+)\|`)
@@ -124,7 +158,9 @@ func setupFlags(cmd *cobra.Command, flags any, flagSet *pflag.FlagSet) {
 		flagShort, _ := field.Tag.Lookup("short")
 
 		actualValue := value.Addr().Interface()
-		setupFlag(flagName, flagShort, normalizeUsage(flagUsage), unwrap(actualValue), flagSet)
+		if err := setupFlag(flagName, flagShort, normalizeUsage(flagUsage), unwrap(actualValue), flagSet); err != nil {
+			return fmt.Errorf("failed to setup flag %q: %w", flagName, err)
+		}
 
 		switch v := actualValue.(type) {
 		case AutoCompleter:
@@ -145,6 +181,8 @@ func setupFlags(cmd *cobra.Command, flags any, flagSet *pflag.FlagSet) {
 			)
 		}
 	}
+
+	return nil
 }
 
 func unwrap(value any) any {
@@ -158,13 +196,17 @@ func unwrap(value any) any {
 	}
 }
 
-// isValidFlags checks if the provided value is a pointer to a struct.
-func isValidFlags(flags any) bool {
+// validateFlags is used to validate command flags.
+func validateFlags(flags any) error {
 	t := reflect.TypeOf(flags)
 
 	if t.Kind() != reflect.Pointer {
-		return false
+		return fmt.Errorf("expected flags to be a pointer")
 	}
 
-	return t.Elem().Kind() == reflect.Struct
+	if t.Elem().Kind() != reflect.Struct {
+		return fmt.Errorf("expected flags to be a pointer to a struct")
+	}
+
+	return nil
 }

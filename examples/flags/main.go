@@ -8,49 +8,50 @@ import (
 	"github.com/nais/naistrix"
 )
 
-type Flags struct {
-	Verbose naistrix.Count `name:"verbose" short:"v" usage:"Verbosity level. Can be repeated."`
+type GlobalFlags struct {
+	Quiet bool `name:"quiet" short:"q" usage:"Suppress all output."`
 }
 
 type CreateFlags struct {
-	*Flags
+	*GlobalFlags
 	Resources []string `name:"resources" short:"r" usage:"Resource(s) to add to the application. Can be repeated."`
 }
 
 type DeleteFlags struct {
-	*Flags
+	*GlobalFlags
 	Force bool `name:"force" short:"f" usage:"Force deletion of application."`
 }
 
-func createCommand(parentFlags *Flags) *naistrix.Command {
-	flags := &CreateFlags{Flags: parentFlags}
+func createCommand(globalFlags *GlobalFlags) *naistrix.Command {
+	flags := &CreateFlags{GlobalFlags: globalFlags}
 	return &naistrix.Command{
 		Name:  "create",
 		Args:  []naistrix.Argument{{Name: "app_name"}},
 		Title: "Create an application",
 		Flags: flags,
-		RunFunc: func(ctx context.Context, out naistrix.Output, args []string) error {
-			// ...
+		RunFunc: func(ctx context.Context, out *naistrix.OutputWriter, args []string) error {
+			// when entering this function, the flags variable has been mutated according to the CLI input provided by
+			// the user
 
-			fmt.Println(flags.Resources)
 			out.Println("Created application:", args[0])
 			return nil
 		},
 	}
 }
 
-func deleteCommand(parentFlags *Flags) *naistrix.Command {
+func deleteCommand(globalFlags *GlobalFlags) *naistrix.Command {
 	flags := &DeleteFlags{
-		Flags: parentFlags,
-		Force: true, // Set default value
+		GlobalFlags: globalFlags,
+		Force:       true, // Set default value
 	}
 	return &naistrix.Command{
 		Name:  "delete",
 		Args:  []naistrix.Argument{{Name: "app_name"}},
 		Title: "Delete an application",
 		Flags: flags,
-		RunFunc: func(ctx context.Context, out naistrix.Output, args []string) error {
-			// ...
+		RunFunc: func(ctx context.Context, out *naistrix.OutputWriter, args []string) error {
+			// when entering this function, the flags variable has been mutated according to the CLI input provided by
+			// the user
 
 			out.Println("Deleted application:", args[0])
 			return nil
@@ -59,21 +60,34 @@ func deleteCommand(parentFlags *Flags) *naistrix.Command {
 }
 
 func main() {
-	flags := &Flags{}
-	app := &naistrix.Application{
-		Name:  "example",
-		Title: "Example application with flags",
+	app, flags, err := naistrix.NewApplication(
+		"example",
+		"Example application with flags",
+		"v0.0.0",
+	)
+	if err != nil {
+		fmt.Printf("error when creating application: %v\n", err)
+		os.Exit(1)
+	}
+
+	_ = flags // Embed this if you need to access base global flags in any of your commands
+
+	extraGlobalFlags := &GlobalFlags{}
+	if err := app.AddGlobalFlags(extraGlobalFlags); err != nil {
+		fmt.Printf("error when adding global flags: %v\n", err)
+	}
+
+	err = app.AddCommand(&naistrix.Command{
+		Name:  "app",
+		Title: "Application commands",
 		SubCommands: []*naistrix.Command{
-			{
-				Name:  "app",
-				Title: "Application commands",
-				SubCommands: []*naistrix.Command{
-					createCommand(flags),
-					deleteCommand(flags),
-				},
-			},
+			createCommand(extraGlobalFlags),
+			deleteCommand(extraGlobalFlags),
 		},
-		StickyFlags: flags,
+	})
+	if err != nil {
+		fmt.Printf("error when adding command: %v\n", err)
+		os.Exit(1)
 	}
 
 	if err := app.Run(); err != nil {

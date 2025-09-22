@@ -93,12 +93,12 @@ type Example struct {
 // RunFunc is a function that will be executed when the command is run.
 //
 // The args passed to this function is the arguments passed to the command by the end-user.
-type RunFunc func(ctx context.Context, out Output, args []string) error
+type RunFunc func(ctx context.Context, out *OutputWriter, args []string) error
 
 // cobraExample generates a formatted string of examples suitable for the underlying cobra.Command.
-func (c *Command) cobraExample(prefix string) string {
+func (c *Command) cobraExample(prefix string) (string, error) {
 	if len(c.Examples) == 0 {
-		return ""
+		return "", nil
 	}
 
 	const indent = "  "
@@ -107,7 +107,7 @@ func (c *Command) cobraExample(prefix string) string {
 	for _, ex := range c.Examples {
 		description := strings.TrimSpace(ex.Description)
 		if description == "" {
-			panic(fmt.Sprintf("example for command %q is missing description", c.Name))
+			return "", fmt.Errorf("example for command %q is missing description", c.Name)
 		}
 
 		cmd := prefix + " " + strings.TrimSpace(ex.Command)
@@ -115,7 +115,7 @@ func (c *Command) cobraExample(prefix string) string {
 		sb.WriteString(indent + "$ " + cmd + "\n\n")
 	}
 
-	return indent + strings.TrimSpace(sb.String())
+	return indent + strings.TrimSpace(sb.String()), nil
 }
 
 // cobraUse generates the command usage string for the underlying cobra.Command.
@@ -197,7 +197,7 @@ func (c *Command) cobraLong(short string) string {
 }
 
 // cobraRun wraps the RunFunc of the command into a function that can be used by the underlying cobra.Command.
-func (c *Command) cobraRun(out Output) func(*cobra.Command, []string) error {
+func (c *Command) cobraRun(out *OutputWriter) func(*cobra.Command, []string) error {
 	if c.RunFunc == nil {
 		return func(cmd *cobra.Command, args []string) error {
 			if err := cobra.NoArgs(cmd, args); err != nil {
@@ -257,15 +257,21 @@ func (c *Command) validate() error {
 }
 
 // init validates and initializes the cobra.Command.
-func (c *Command) init(cmd string, out Output, usageTemplate string) {
+func (c *Command) init(cmd string, out *OutputWriter, usageTemplate string) error {
 	if err := c.validate(); err != nil {
-		panic(err.Error())
+		return err
 	}
 
 	cmd = cmd + " " + c.Name
 	short := c.cobraShort()
+
+	example, err := c.cobraExample(cmd)
+	if err != nil {
+		return fmt.Errorf("failed to generate examples for command %q: %w", c.Name, err)
+	}
+
 	c.cobraCmd = &cobra.Command{
-		Example:           c.cobraExample(cmd),
+		Example:           example,
 		Aliases:           c.Aliases,
 		Use:               c.cobraUse(),
 		Short:             short,
@@ -300,12 +306,19 @@ func (c *Command) init(cmd string, out Output, usageTemplate string) {
 		c.cobraCmd.SetUsageTemplate(usageTemplate)
 	}
 
-	setupFlags(c.cobraCmd, c.Flags, c.cobraCmd.Flags())
-	setupFlags(c.cobraCmd, c.StickyFlags, c.cobraCmd.PersistentFlags())
+	if err := setupFlags(c.cobraCmd, c.Flags, c.cobraCmd.Flags()); err != nil {
+		return fmt.Errorf("failed to setup flags: %w", err)
+	}
+
+	if err := setupFlags(c.cobraCmd, c.StickyFlags, c.cobraCmd.PersistentFlags()); err != nil {
+		return fmt.Errorf("failed to setup persistent flags: %w", err)
+	}
 
 	commandsAndAliases := make([]string, 0)
 	for _, sub := range c.SubCommands {
-		sub.init(cmd, out, usageTemplate)
+		if err := sub.init(cmd, out, usageTemplate); err != nil {
+			return err
+		}
 		c.cobraCmd.AddCommand(sub.cobraCmd)
 
 		commandsAndAliases = append(commandsAndAliases, sub.Name)
@@ -313,6 +326,8 @@ func (c *Command) init(cmd string, out Output, usageTemplate string) {
 	}
 
 	if d := duplicate(commandsAndAliases); d != "" {
-		panic(fmt.Sprintf("command %q contains duplicate commands and/or aliases: %q", cmd, d))
+		return fmt.Errorf("command %q contains duplicate commands and/or aliases: %q", cmd, d)
 	}
+
+	return nil
 }

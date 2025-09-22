@@ -67,9 +67,17 @@ jobs:
   checks:
     strategy:
       matrix:
-        mise_task: [check:deadcode, check:govulncheck, check:staticcheck, check:govet, fmt:ci, test]
+        mise-task:
+          - check:deadcode
+          - check:golangci-lint
+          - check:gosec
+          - check:govet
+          - check:govulncheck
+          - check:staticcheck
+          - fmt:ci
+          - test
     name: |
-      Run mise task: ${{ matrix.mise_task }}
+      Run mise task: ${{ matrix.mise-task }}
     needs: [release-info]
     runs-on: ubuntu-latest
     steps:
@@ -79,9 +87,9 @@ jobs:
         uses: jdx/mise-action@v3
         with:
           cache: false
-      - name: mise run ${{ matrix.mise_task }}
+      - name: mise run ${{ matrix.mise-task }}
         run: |
-          mise run ${{ matrix.mise_task }}
+          mise run ${{ matrix.mise-task }}
 
   # Used by GitHub to determine if all checks/builds have passed
   branch-protection-checkpoint:

@@ -10,15 +10,12 @@ import (
 )
 
 func TestCommandValidation(t *testing.T) {
-	ctx := context.Background()
-	noop := func(context.Context, naistrix.Output, []string) error {
-		return nil
-	}
+	noop := func(context.Context, *naistrix.OutputWriter, []string) error { return nil }
 
 	tests := []struct {
 		name          string
 		cmd           *naistrix.Command
-		panicContains string
+		errorContains string
 	}{
 		{
 			name: "command with no name",
@@ -26,7 +23,7 @@ func TestCommandValidation(t *testing.T) {
 				Title:   "Test command",
 				RunFunc: noop,
 			},
-			panicContains: "cannot be empty",
+			errorContains: "cannot be empty",
 		},
 		{
 			name: "command with space in name",
@@ -35,7 +32,7 @@ func TestCommandValidation(t *testing.T) {
 				Title:   "Test command",
 				RunFunc: noop,
 			},
-			panicContains: "contain spaces",
+			errorContains: "contain spaces",
 		},
 		{
 			name: "command with no title",
@@ -43,7 +40,7 @@ func TestCommandValidation(t *testing.T) {
 				Name:    "cmd",
 				RunFunc: noop,
 			},
-			panicContains: "missing a title",
+			errorContains: "missing a title",
 		},
 		{
 			name: "command with newline in title",
@@ -52,7 +49,7 @@ func TestCommandValidation(t *testing.T) {
 				Title:   "Test command\nwith newline",
 				RunFunc: noop,
 			},
-			panicContains: "contains newline",
+			errorContains: "contains newline",
 		},
 		{
 			name: "missing RunFunc and SubCommands",
@@ -60,7 +57,7 @@ func TestCommandValidation(t *testing.T) {
 				Name:  "test",
 				Title: "Some title",
 			},
-			panicContains: "either RunFunc or SubCommands must be set",
+			errorContains: "either RunFunc or SubCommands must be set",
 		},
 		{
 			name: "has both RunFunc and SubCommands",
@@ -76,36 +73,27 @@ func TestCommandValidation(t *testing.T) {
 					},
 				},
 			},
-			panicContains: "either RunFunc or SubCommands must be set",
+			errorContains: "either RunFunc or SubCommands must be set",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			app := &naistrix.Application{
-				Name:        "app",
-				SubCommands: []*naistrix.Command{tt.cmd},
+			app, _, err := naistrix.NewApplication("app", "title", "v0.0.0")
+			if err != nil {
+				t.Fatalf("expected no error, got: %v", err)
 			}
 
-			defer func() {
-				if r := recover(); r == nil {
-					t.Fatalf("expected panic for command with no name, but did not panic")
-				} else if msg := r.(string); !strings.Contains(msg, tt.panicContains) {
-					t.Fatalf("expected panic message to contain %q, got: %q", tt.panicContains, msg)
-				}
-			}()
-
-			_ = app.Run(
-				naistrix.RunWithContext(ctx),
-				naistrix.RunWithOutput(naistrix.Discard()),
-				naistrix.RunWithArgs([]string{"-h"}),
-			)
+			err = app.AddCommand(tt.cmd)
+			if err == nil {
+				t.Fatalf("expected error, got nil")
+			} else if !strings.Contains(err.Error(), tt.errorContains) {
+				t.Fatalf("expected error message to contain %q, got: %q", tt.errorContains, err.Error())
+			}
 		})
 	}
 }
 
 func TestArgumentUseString(t *testing.T) {
-	ctx := context.Background()
-
 	tests := []struct {
 		name               string
 		expectedArgsString string
@@ -133,22 +121,30 @@ func TestArgumentUseString(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			app := &naistrix.Application{
-				Name: "app",
-				SubCommands: []*naistrix.Command{
-					{
-						Name:  "test",
-						Title: "Test command",
-						Args:  tt.args,
-						RunFunc: func(context.Context, naistrix.Output, []string) error {
-							return nil
-						},
-					},
-				},
-			}
 			buf := &bytes.Buffer{}
-			out := naistrix.NewWriter(buf)
-			if err := app.Run(naistrix.RunWithContext(ctx), naistrix.RunWithOutput(out), naistrix.RunWithArgs([]string{"test", "-h"})); err != nil {
+			app, _, err := naistrix.NewApplication(
+				"app",
+				"title",
+				"v0.0.0",
+				naistrix.ApplicationWithWriter(buf),
+			)
+			if err != nil {
+				t.Fatalf("expected no error, got: %v", err)
+			}
+
+			err = app.AddCommand(&naistrix.Command{
+				Name:  "test",
+				Title: "Test command",
+				Args:  tt.args,
+				RunFunc: func(context.Context, *naistrix.OutputWriter, []string) error {
+					return nil
+				},
+			})
+			if err != nil {
+				t.Fatalf("expected no error, got: %v", err)
+			}
+
+			if err := app.Run(naistrix.RunWithArgs([]string{"test", "-h"})); err != nil {
 				t.Fatalf("expected no error, got %v", err)
 			}
 
@@ -161,19 +157,17 @@ func TestArgumentUseString(t *testing.T) {
 }
 
 func TestCommandArgumentValidation(t *testing.T) {
-	ctx := context.Background()
-
 	tests := []struct {
 		name          string
 		args          []naistrix.Argument
-		panicContains string
+		errorContains string
 	}{
 		{
 			name: "missing argument name",
 			args: []naistrix.Argument{
 				{Repeatable: true},
 			},
-			panicContains: "cannot be empty",
+			errorContains: "cannot be empty",
 		},
 		{
 			name: "repeatable argument must be last",
@@ -181,31 +175,28 @@ func TestCommandArgumentValidation(t *testing.T) {
 				{Name: "arg1", Repeatable: true},
 				{Name: "arg2"},
 			},
-			panicContains: "must be the last argument",
+			errorContains: "must be the last argument",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			defer func() {
-				if msg, ok := recover().(string); ok && !strings.Contains(msg, tt.panicContains) {
-					t.Fatalf("expected panic message to contain %q, got: %q", tt.panicContains, msg)
-				}
-			}()
-			_ = (&naistrix.Application{
-				Name: "app",
-				SubCommands: []*naistrix.Command{
-					{
-						Name:  "test",
-						Title: "Test command",
-						RunFunc: func(context.Context, naistrix.Output, []string) error {
-							return nil
-						},
-						Args: tt.args,
-					},
-				},
-			}).Run(naistrix.RunWithContext(ctx), naistrix.RunWithOutput(naistrix.Discard()), naistrix.RunWithArgs([]string{"-h"}))
-			t.Fatalf("expected panic")
+			app, _, err := naistrix.NewApplication("app", "title", "v0.0.0")
+			if err != nil {
+				t.Fatalf("expected no error, got: %v", err)
+			}
+
+			err = app.AddCommand(&naistrix.Command{
+				Name:    "test",
+				Title:   "Test command",
+				RunFunc: func(context.Context, *naistrix.OutputWriter, []string) error { return nil },
+				Args:    tt.args,
+			})
+			if err == nil {
+				t.Fatalf("expected error, got nil")
+			} else if !strings.Contains(err.Error(), tt.errorContains) {
+				t.Fatalf("expected error message to contain %q, got: %q", tt.errorContains, err.Error())
+			}
 		})
 	}
 }

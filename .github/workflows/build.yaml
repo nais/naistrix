@@ -14,55 +14,18 @@ jobs:
     name: Generate release info
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.generate.outputs.version }}
-      changelog: ${{ steps.generate.outputs.changelog }}
+      version: ${{ steps.release-info.outputs.version }}
+      changelog: ${{ steps.release-info.outputs.changelog }}
     permissions:
       contents: read
       pull-requests: write
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - name: Install tooling
-        uses: jdx/mise-action@v3
-      - name: Generate release info
-        id: generate
-        run: |
-          version="$(git-cliff --bumped-version)"
-          echo "version=$version" >>"$GITHUB_OUTPUT"
-          echo "Bumped version: $version"
-          changelog="$(git-cliff \
-            --tag "$version" \
-            --github-repo "${{ github.repository }}" \
-            --github-token "${{ secrets.GITHUB_TOKEN }}" \
-            --unreleased \
-            --strip all \
-            -v)"
-          echo "changelog<<EOF" >>"$GITHUB_OUTPUT"
-          echo "$changelog" >>"$GITHUB_OUTPUT"
-          echo "EOF" >>"$GITHUB_OUTPUT"
-          
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            echo -n "PR comment with release info: "
-            if [[ -n "$changelog" ]]; then
-              pr_comment="# :pencil: Changelog preview
-          Below is a preview of the Changelog that will be added to the next release. \
-          Only commit messages that follow the [Conventional Commits specification](https://www.conventionalcommits.org/) will be included in the Changelog.
-          
-          $changelog"
-            else
-              pr_comment="# :disappointed: No release for you
-          There are no commits in your branch that follow the [Conventional Commits specification](https://www.conventionalcommits.org/), so no release will be created.
-
-          If you want to create a release from this pull request, please reword your commit messages to replace this message with a preview of a beautiful Changelog."
-            fi
-
-            echo -e "$pr_comment" | gh pr comment "${{ github.event.number }}" \
-              --edit-last --create-if-none \
-              --repo "${{ github.repository }}" \
-              --body-file=-
-          fi
+      - uses: jdx/mise-action@v3
+      - id: release-info
+        run: mise run ci:release-info
 
   checks:
     strategy:
@@ -74,7 +37,7 @@ jobs:
           - check:govet
           - check:govulncheck
           - check:staticcheck
-          - fmt:ci
+          - ci:fmt
           - test
     name: |
       Run mise task: ${{ matrix.mise-task }}

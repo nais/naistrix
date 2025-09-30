@@ -1,6 +1,6 @@
 [tools]
-git-cliff = "2.10.0"
-go = "1.25.0"
+git-cliff = "2.10.1"
+go = "1.25.1"
 
 [settings]
 pin = true

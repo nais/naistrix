@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/mod/semver"
 )
 
 // Application represents a CLI application with a set of commands.
@@ -91,8 +90,8 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 		return nil, nil, fmt.Errorf("application title must not be empty")
 	}
 
-	if !semver.IsValid(version) {
-		return nil, nil, fmt.Errorf("application version must be a valid semantic version, got: %q", version)
+	if v := strings.TrimSpace(version); v == "" {
+		return nil, nil, fmt.Errorf("application version must not be empty")
 	}
 
 	flags := &GlobalFlags{}

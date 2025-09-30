@@ -78,18 +78,7 @@ func TestApplicationValidation(t *testing.T) {
 			t.Fatalf("expected error, got nil")
 		}
 
-		if contains := "must be a valid semantic version"; !strings.Contains(err.Error(), contains) {
-			t.Fatalf("expected error message to contain %q, got: %q", contains, err.Error())
-		}
-	})
-
-	t.Run("invalid version", func(t *testing.T) {
-		_, _, err := naistrix.NewApplication("app", "title", "1.1.1")
-		if err == nil {
-			t.Fatalf("expected error, got nil")
-		}
-
-		if contains := "must be a valid semantic version"; !strings.Contains(err.Error(), contains) {
+		if contains := "version must not be empty"; !strings.Contains(err.Error(), contains) {
 			t.Fatalf("expected error message to contain %q, got: %q", contains, err.Error())
 		}
 	})

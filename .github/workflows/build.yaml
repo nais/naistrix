@@ -1,9 +1,13 @@
 name: Build, test and release
 on:
   pull_request:
-    types: [opened, reopened, synchronize]
+    types:
+      - opened
+      - reopened
+      - synchronize
   push:
-    branches: [main]
+    branches:
+      - main
 
 concurrency:
   group: ${{ github.ref }}
@@ -41,23 +45,18 @@ jobs:
           - test
     name: |
       Run mise task: ${{ matrix.mise-task }}
-    needs: [release-info]
+    needs:
+      - release-info
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
-      - name: Install tooling
-        uses: jdx/mise-action@v3
-        with:
-          cache: false
-      - name: mise run ${{ matrix.mise-task }}
-        run: |
-          mise run ${{ matrix.mise-task }}
+      - uses: actions/checkout@v5
+      - uses: jdx/mise-action@v3
+      - run: mise run ${{ matrix.mise-task }}
 
-  # Used by GitHub to determine if all checks/builds have passed
   branch-protection-checkpoint:
     runs-on: ubuntu-latest
-    needs: [checks]
+    needs:
+      - checks
     name: Branch protection checkpoint
     steps:
       - run: echo "All checks passed :rocket:"
@@ -66,14 +65,14 @@ jobs:
     if: github.ref == 'refs/heads/main' && needs.release-info.outputs.changelog != ''
     name: Create new tag and GitHub release
     runs-on: ubuntu-latest
-    needs: [release-info, checks]
+    needs:
+      - release-info
+      - checks
     permissions:
       contents: write
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
+      - uses: actions/checkout@v5
+      - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.release-info.outputs.version }}
           body: ${{ needs.release-info.outputs.changelog }}

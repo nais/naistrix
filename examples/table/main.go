@@ -56,21 +56,21 @@ func main() {
 		&naistrix.Command{
 			Name:  "show",
 			Title: "Show users.",
-			RunFunc: func(_ context.Context, out *naistrix.OutputWriter, _ []string) error {
+			RunFunc: func(_ context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
 				return out.Table().Render(users)
 			},
 		},
 		&naistrix.Command{
 			Name:  "show-full",
 			Title: "Show users with hidden columns.",
-			RunFunc: func(_ context.Context, out *naistrix.OutputWriter, _ []string) error {
+			RunFunc: func(_ context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
 				return out.Table(output.TableWithShowHiddenColumns()).Render(users)
 			},
 		},
 		&naistrix.Command{
 			Name:  "show-simple",
 			Title: "Render a slice of string slices as a table.",
-			RunFunc: func(_ context.Context, out *naistrix.OutputWriter, _ []string) error {
+			RunFunc: func(_ context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
 				data := [][]string{
 					{"Name", "Email", "Age"}, // first row is used as headers
 					{"Alice", "alice@example.com", "30"},

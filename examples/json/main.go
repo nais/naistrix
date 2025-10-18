@@ -52,7 +52,7 @@ func main() {
 			Name:  "show",
 			Title: "Show users.",
 			Flags: flags,
-			RunFunc: func(_ context.Context, out *naistrix.OutputWriter, _ []string) error {
+			RunFunc: func(_ context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
 				var opts []output.JSONOptionFunc
 				if flags.Pretty {
 					opts = append(opts, output.JSONWithPrettyOutput())

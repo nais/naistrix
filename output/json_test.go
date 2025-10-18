@@ -55,7 +55,7 @@ func TestJSON(t *testing.T) {
 			err = app.AddCommand(&naistrix.Command{
 				Name:  "test",
 				Title: "Some title",
-				RunFunc: func(_ context.Context, out *naistrix.OutputWriter, _ []string) error {
+				RunFunc: func(_ context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
 					return out.JSON(tt.jsonOpts...).Render(tt.dataToRender)
 				},
 			})

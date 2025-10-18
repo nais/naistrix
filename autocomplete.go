@@ -11,24 +11,25 @@ import (
 
 // AutoCompleteFunc is a function that will be executed to provide auto-completion suggestions for a command.
 //
-// The args passed to this function is the arguments added to the command, in the same order. toComplete is the current
-// input that the user is typing, and it can be used to filter the suggestions to be returned.
+// The args passed to this function is the arguments passed to the command by the user. toComplete is the current input
+// that the user is typing, and it can be used to filter the suggestions to be returned.
 //
 // The first return value is a slice of strings that will be used as suggestions, and the second return value is a
-// string that will be used as active help text in the shell while performing auto-complete.
-type AutoCompleteFunc func(ctx context.Context, args []string, toComplete string) (completions []string, activeHelp string)
+// string that will be used as active help text in the shell while performing auto-complete. Return an empty slice and
+// an empty string if you don't want to generate any completions.
+type AutoCompleteFunc func(ctx context.Context, args *Arguments, toComplete string) (completions []string, activeHelp string)
 
-func autocomplete(autoCompleteFunc AutoCompleteFunc, autoCompleteFilesExtensions []string) cobra.CompletionFunc {
-	if len(autoCompleteFilesExtensions) > 0 {
-		return autocompleteFiles(autoCompleteFilesExtensions)
+func (c *Command) autocomplete() cobra.CompletionFunc {
+	if len(c.AutoCompleteExtensions) > 0 {
+		return autocompleteFiles(c.AutoCompleteExtensions)
 	}
 
-	if autoCompleteFunc == nil {
+	if c.AutoCompleteFunc == nil {
 		return nil
 	}
 
 	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-		completions, activeHelp := autoCompleteFunc(cmd.Context(), args, toComplete)
+		completions, activeHelp := c.AutoCompleteFunc(cmd.Context(), newArguments(c.Args, args), toComplete)
 		if activeHelp != "" {
 			completions = cobra.AppendActiveHelp(completions, activeHelp)
 		}

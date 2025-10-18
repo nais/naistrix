@@ -2,7 +2,6 @@ package naistrix_test
 
 import (
 	"bytes"
-	"context"
 	"strings"
 	"testing"
 
@@ -10,8 +9,6 @@ import (
 )
 
 func TestCommandValidation(t *testing.T) {
-	noop := func(context.Context, *naistrix.OutputWriter, []string) error { return nil }
-
 	tests := []struct {
 		name          string
 		cmd           *naistrix.Command
@@ -133,12 +130,10 @@ func TestArgumentUseString(t *testing.T) {
 			}
 
 			err = app.AddCommand(&naistrix.Command{
-				Name:  "test",
-				Title: "Test command",
-				Args:  tt.args,
-				RunFunc: func(context.Context, *naistrix.OutputWriter, []string) error {
-					return nil
-				},
+				Name:    "test",
+				Title:   "Test command",
+				Args:    tt.args,
+				RunFunc: noop,
 			})
 			if err != nil {
 				t.Fatalf("expected no error, got: %v", err)
@@ -189,7 +184,7 @@ func TestCommandArgumentValidation(t *testing.T) {
 			err = app.AddCommand(&naistrix.Command{
 				Name:    "test",
 				Title:   "Test command",
-				RunFunc: func(context.Context, *naistrix.OutputWriter, []string) error { return nil },
+				RunFunc: noop,
 				Args:    tt.args,
 			})
 			if err == nil {

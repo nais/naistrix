@@ -124,7 +124,7 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 	app.rootCommand.CompletionOptions.SetDefaultShellCompDirective(cobra.ShellCompDirectiveNoFileComp)
 	app.rootCommand.SetOut(app.output.writer)
 
-	if err := setupFlags(app.rootCommand, app.flags, app.rootCommand.PersistentFlags()); err != nil {
+	if err := setupFlags(app.rootCommand, nil, app.flags, app.rootCommand.PersistentFlags()); err != nil {
 		return nil, nil, fmt.Errorf("failed to setup application flags: %w", err)
 	}
 
@@ -168,7 +168,7 @@ func (a *Application) AddCommand(cmd *Command, cmds ...*Command) error {
 // AddGlobalFlags adds global flags to the application. These flags will be available for all subcommands of the
 // application. The passed flags must be a pointer to a struct where each field represents a flag.
 func (a *Application) AddGlobalFlags(flags any) error {
-	if err := setupFlags(a.rootCommand, flags, a.rootCommand.PersistentFlags()); err != nil {
+	if err := setupFlags(a.rootCommand, nil, flags, a.rootCommand.PersistentFlags()); err != nil {
 		return fmt.Errorf("unable to add global flags: %w", err)
 	}
 

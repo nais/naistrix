@@ -27,25 +27,26 @@ func main() {
 			{Name: "func"},
 			{Name: "word", Repeatable: true},
 		},
-		ValidateFunc: func(ctx context.Context, args []string) error {
-			switch args[0] {
+		ValidateFunc: func(ctx context.Context, args *naistrix.Arguments) error {
+			switch cb := args.Get("func"); cb {
 			case "upper", "lower":
 				return nil
 			default:
-				return naistrix.Errorf("only 'upper' or 'lower' is allowed")
+				return naistrix.Errorf(`only "upper" or "lower" is allowed for the "func" argument, got: %q`, cb)
 			}
 		},
-		RunFunc: func(ctx context.Context, out *naistrix.OutputWriter, args []string) error {
+		RunFunc: func(ctx context.Context, args *naistrix.Arguments, out *naistrix.OutputWriter) error {
 			var t func(string) string
-			if args[0] == "upper" {
+			if args.Get("func") == "upper" {
 				t = strings.ToUpper
 			} else {
 				t = strings.ToLower
 			}
 
 			out.Printf("Words: ")
-			words := make([]any, len(args)-1)
-			for i, word := range args[1:] {
+			w := args.GetRepeatable("word")
+			words := make([]any, len(w))
+			for i, word := range w {
 				words[i] = t(word)
 			}
 			out.Println(words...)

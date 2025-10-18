@@ -52,7 +52,7 @@ func TestOutputWriter_ConditionalOutput(t *testing.T) {
 			err = app.AddCommand(&naistrix.Command{
 				Name:  "test",
 				Title: "Test command",
-				RunFunc: func(_ context.Context, out *naistrix.OutputWriter, _ []string) error {
+				RunFunc: func(_ context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
 					out.Printf("normal:")
 					out.Println("n1", "n2")
 
@@ -95,7 +95,7 @@ func TestOutputWriter_OutputStyles(t *testing.T) {
 	err = app.AddCommand(&naistrix.Command{
 		Name:  "test",
 		Title: "Test command",
-		RunFunc: func(_ context.Context, out *naistrix.OutputWriter, _ []string) error {
+		RunFunc: func(_ context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
 			out.Infof("some info\n")
 			out.Infoln("more", "info")
 

@@ -22,7 +22,7 @@ func main() {
 	err = app.AddCommand(&naistrix.Command{
 		Name:  "run",
 		Title: "Run a command",
-		RunFunc: func(_ context.Context, out *naistrix.OutputWriter, args []string) error {
+		RunFunc: func(_ context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
 			// Messages with labels / colors
 
 			out.Infoln("An informational message.")

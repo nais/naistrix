@@ -10,6 +10,10 @@ import (
 	"github.com/nais/naistrix"
 )
 
+var noop = func(context.Context, *naistrix.Arguments, *naistrix.OutputWriter) error {
+	return nil
+}
+
 // Application with a single command that greets the user.
 func ExampleApplication() {
 	app, _, err := naistrix.NewApplication(
@@ -25,8 +29,9 @@ func ExampleApplication() {
 		Name:  "greet",
 		Title: "Greet the user",
 		Args:  []naistrix.Argument{{Name: "user_name"}},
-		RunFunc: func(ctx context.Context, out *naistrix.OutputWriter, args []string) error {
-			out.Println("Hello, " + strings.ToUpper(args[0]) + "!")
+		RunFunc: func(ctx context.Context, args *naistrix.Arguments, out *naistrix.OutputWriter) error {
+			userName := args.Get("user_name")
+			out.Println("Hello, " + strings.ToUpper(userName) + "!")
 			return nil
 		},
 	})
@@ -110,7 +115,7 @@ func TestExecutedCommands(t *testing.T) {
 		err = app.AddCommand(&naistrix.Command{
 			Name:    "cmd",
 			Title:   "Command",
-			RunFunc: func(context.Context, *naistrix.OutputWriter, []string) error { return nil },
+			RunFunc: noop,
 		})
 		if err != nil {
 			t.Fatalf("expected no error, got: %v", err)
@@ -145,7 +150,7 @@ func TestExecutedCommands(t *testing.T) {
 				SubCommands: []*naistrix.Command{{
 					Name:    "sub2",
 					Title:   "Sub Command 2",
-					RunFunc: func(context.Context, *naistrix.OutputWriter, []string) error { return nil },
+					RunFunc: noop,
 				}},
 			}},
 		})
@@ -182,7 +187,7 @@ func TestExecutedCommands(t *testing.T) {
 				SubCommands: []*naistrix.Command{{
 					Name:    "sub2",
 					Title:   "Sub Command 2",
-					RunFunc: func(context.Context, *naistrix.OutputWriter, []string) error { return nil },
+					RunFunc: noop,
 				}},
 			}},
 		})
@@ -205,8 +210,6 @@ func TestExecutedCommands(t *testing.T) {
 }
 
 func TestDuplicateCommandNamesAndAliases(t *testing.T) {
-	noop := func(context.Context, *naistrix.OutputWriter, []string) error { return nil }
-
 	t.Run("duplicate command names", func(t *testing.T) {
 		app, _, err := naistrix.NewApplication("test", "title", "v0.0.0")
 		if err != nil {
@@ -303,7 +306,7 @@ func TestRunWithContext(t *testing.T) {
 	err = app.AddCommand(&naistrix.Command{
 		Name:  "cmd",
 		Title: "Command",
-		RunFunc: func(ctx context.Context, _ *naistrix.OutputWriter, _ []string) error {
+		RunFunc: func(ctx context.Context, _ *naistrix.Arguments, _ *naistrix.OutputWriter) error {
 			if actual := ctx.Value(contextKey); actual != contextValue {
 				return fmt.Errorf("expected context value %q, got %q", contextValue, actual)
 			}
@@ -335,7 +338,7 @@ func TestApplicationVersion(t *testing.T) {
 	err = app.AddCommand(&naistrix.Command{
 		Name:    "cmd",
 		Title:   "Command",
-		RunFunc: func(context.Context, *naistrix.OutputWriter, []string) error { return nil },
+		RunFunc: noop,
 	})
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)

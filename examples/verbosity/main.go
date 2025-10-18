@@ -22,7 +22,7 @@ func main() {
 	err = app.AddCommand(&naistrix.Command{
 		Name:  "run",
 		Title: "Run a command",
-		RunFunc: func(_ context.Context, out *naistrix.OutputWriter, args []string) error {
+		RunFunc: func(_ context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
 			out.Println("Some regular message, always shown.")
 			out.Verboseln("Some verbose message, shown with -v or more.")
 			out.Debugln("Some debug message, shown with -vv or more.")

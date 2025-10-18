@@ -92,8 +92,9 @@ type Example struct {
 
 // RunFunc is a function that will be executed when the command is run.
 //
-// The args passed to this function is the arguments passed to the command by the end-user.
-type RunFunc func(ctx context.Context, out *OutputWriter, args []string) error
+// The Arguments parameter holds the arguments specified by the user, and all output should be generated using the
+// OutputWriter.
+type RunFunc func(ctx context.Context, args *Arguments, out *OutputWriter) error
 
 // cobraExample generates a formatted string of examples suitable for the underlying cobra.Command.
 func (c *Command) cobraExample(prefix string) (string, error) {
@@ -160,7 +161,7 @@ func (c *Command) validateArgs() error {
 
 	if validationFunc != nil {
 		existingValidateFunc := c.ValidateFunc
-		c.ValidateFunc = func(ctx context.Context, args []string) error {
+		c.ValidateFunc = func(ctx context.Context, args *Arguments) error {
 			if err := validationFunc(ctx, args); err != nil {
 				return err
 			}
@@ -229,7 +230,7 @@ func (c *Command) cobraRun(out *OutputWriter) func(*cobra.Command, []string) err
 	}
 
 	return func(cmd *cobra.Command, args []string) error {
-		return c.RunFunc(cmd.Context(), out, args)
+		return c.RunFunc(cmd.Context(), newArguments(c.Args, args), out)
 	}
 }
 
@@ -278,13 +279,13 @@ func (c *Command) init(cmd string, out *OutputWriter, usageTemplate string) erro
 		Long:              c.cobraLong(short),
 		GroupID:           c.Group,
 		RunE:              c.cobraRun(out),
-		ValidArgsFunction: autocomplete(c.AutoCompleteFunc, c.AutoCompleteExtensions),
+		ValidArgsFunction: c.autocomplete(),
 		PersistentPreRunE: func(co *cobra.Command, args []string) error {
 			if c.ValidateFunc == nil {
 				return nil
 			}
 
-			if err := c.ValidateFunc(co.Context(), args); err != nil {
+			if err := c.ValidateFunc(co.Context(), newArguments(c.Args, args)); err != nil {
 				var e Error
 				if errors.As(err, &e) {
 					return e
@@ -306,11 +307,11 @@ func (c *Command) init(cmd string, out *OutputWriter, usageTemplate string) erro
 		c.cobraCmd.SetUsageTemplate(usageTemplate)
 	}
 
-	if err := setupFlags(c.cobraCmd, c.Flags, c.cobraCmd.Flags()); err != nil {
+	if err := setupFlags(c.cobraCmd, c.Args, c.Flags, c.cobraCmd.Flags()); err != nil {
 		return fmt.Errorf("failed to setup flags: %w", err)
 	}
 
-	if err := setupFlags(c.cobraCmd, c.StickyFlags, c.cobraCmd.PersistentFlags()); err != nil {
+	if err := setupFlags(c.cobraCmd, c.Args, c.StickyFlags, c.cobraCmd.PersistentFlags()); err != nil {
 		return fmt.Errorf("failed to setup persistent flags: %w", err)
 	}
 

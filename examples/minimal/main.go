@@ -23,8 +23,8 @@ func main() {
 		Name:  "greet",
 		Title: "Greet the user",
 		Args:  []naistrix.Argument{{Name: "user_name"}},
-		RunFunc: func(_ context.Context, out *naistrix.OutputWriter, args []string) error {
-			out.Println("Hello, " + args[0] + "!")
+		RunFunc: func(_ context.Context, args *naistrix.Arguments, out *naistrix.OutputWriter) error {
+			out.Println("Hello, " + args.Get("user_name") + "!")
 			return nil
 		},
 	})

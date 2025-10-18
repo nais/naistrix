@@ -29,11 +29,11 @@ func createCommand(globalFlags *GlobalFlags) *naistrix.Command {
 		Args:  []naistrix.Argument{{Name: "app_name"}},
 		Title: "Create an application",
 		Flags: flags,
-		RunFunc: func(ctx context.Context, out *naistrix.OutputWriter, args []string) error {
+		RunFunc: func(ctx context.Context, args *naistrix.Arguments, out *naistrix.OutputWriter) error {
 			// when entering this function, the flags variable has been mutated according to the CLI input provided by
 			// the user
 
-			out.Println("Created application:", args[0])
+			out.Println("Created application:", args.Get("app_name"))
 			return nil
 		},
 	}
@@ -49,11 +49,11 @@ func deleteCommand(globalFlags *GlobalFlags) *naistrix.Command {
 		Args:  []naistrix.Argument{{Name: "app_name"}},
 		Title: "Delete an application",
 		Flags: flags,
-		RunFunc: func(ctx context.Context, out *naistrix.OutputWriter, args []string) error {
+		RunFunc: func(ctx context.Context, args *naistrix.Arguments, out *naistrix.OutputWriter) error {
 			// when entering this function, the flags variable has been mutated according to the CLI input provided by
 			// the user
 
-			out.Println("Deleted application:", args[0])
+			out.Println("Deleted application:", args.Get("app_name"))
 			return nil
 		},
 	}

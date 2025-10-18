@@ -45,7 +45,7 @@ type Count int
 
 // AutoCompleter is an interface that can be implemented by flag values to provide auto-completion functionality.
 type AutoCompleter interface {
-	AutoComplete(ctx context.Context, args []string, toComplete string, flags any) (completions []string, activeHelp string)
+	AutoComplete(ctx context.Context, args *Arguments, toComplete string, flags any) (completions []string, activeHelp string)
 }
 
 // FileAutoCompleter is an interface that can be implemented by flag values to provide auto-completion functionality for
@@ -115,7 +115,7 @@ func setupFlag(name, short, usage string, value any, flags *pflag.FlagSet) error
 	return nil
 }
 
-func setupFlags(cmd *cobra.Command, flags any, flagSet *pflag.FlagSet) error {
+func setupFlags(cmd *cobra.Command, inputArgs []Argument, flags any, flagSet *pflag.FlagSet) error {
 	if flags == nil {
 		return nil
 	}
@@ -167,7 +167,7 @@ func setupFlags(cmd *cobra.Command, flags any, flagSet *pflag.FlagSet) error {
 			_ = cmd.RegisterFlagCompletionFunc(
 				flagName,
 				func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-					completions, activeHelp := v.AutoComplete(cmd.Context(), args, toComplete, flags)
+					completions, activeHelp := v.AutoComplete(cmd.Context(), newArguments(inputArgs, args), toComplete, flags)
 					if activeHelp != "" {
 						completions = cobra.AppendActiveHelp(completions, activeHelp)
 					}

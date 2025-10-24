@@ -43,8 +43,8 @@ func (f GlobalFlags) IsTrace() bool {
 // Count is a type used for flags that when repeated increment a counter.
 type Count int
 
-// AutoCompleter is an interface that can be implemented by flag values to provide auto-completion functionality.
-type AutoCompleter interface {
+// FlagAutoCompleter is an interface that can be implemented by flag values to provide auto-completion functionality.
+type FlagAutoCompleter interface {
 	AutoComplete(ctx context.Context, args *Arguments, toComplete string, flags any) (completions []string, activeHelp string)
 }
 
@@ -163,7 +163,7 @@ func setupFlags(cmd *cobra.Command, inputArgs []Argument, flags any, flagSet *pf
 		}
 
 		switch v := actualValue.(type) {
-		case AutoCompleter:
+		case FlagAutoCompleter:
 			_ = cmd.RegisterFlagCompletionFunc(
 				flagName,
 				func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {

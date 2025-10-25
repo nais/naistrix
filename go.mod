@@ -1,6 +1,6 @@
 module github.com/nais/naistrix
 
-go 1.25.1
+go 1.25.3
 
 tool (
 	github.com/securego/gosec/v2/cmd/gosec

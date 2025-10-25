@@ -13,6 +13,14 @@ type OutputWriter struct {
 	level  *Count
 }
 
+// NewOutputWriter creates a new output writer.
+func NewOutputWriter(writer io.Writer, level *Count) *OutputWriter {
+	return &OutputWriter{
+		writer: writer,
+		level:  level,
+	}
+}
+
 // Table creates a new table that can be rendered to the destination.
 func (w *OutputWriter) Table(opts ...output.TableOptionFunc) *output.Table {
 	return output.NewTable(w.writer, opts...)

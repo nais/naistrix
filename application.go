@@ -100,15 +100,11 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 		title:   title,
 		version: version,
 		flags:   flags,
-		output:  &OutputWriter{level: &flags.VerboseLevel},
+		output:  NewOutputWriter(os.Stdout, &flags.VerboseLevel),
 	}
 
 	for _, opt := range opts {
 		opt(app)
-	}
-
-	if app.output.writer == nil {
-		app.output.writer = os.Stdout
 	}
 
 	cobra.EnableTraverseRunHooks = true

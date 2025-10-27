@@ -137,7 +137,7 @@ func (a *Application) AddCommand(cmd *Command, cmds ...*Command) error {
 	usageTemplate := a.rootCommand.UsageTemplate()
 
 	for _, c := range all {
-		if c.Group != "" && a.rootCommand.ContainsGroup(c.Group) {
+		if c.Group != "" && !a.rootCommand.ContainsGroup(c.Group) {
 			a.rootCommand.AddGroup(&cobra.Group{
 				ID:    c.Group,
 				Title: c.Group,

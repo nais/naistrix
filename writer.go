@@ -31,6 +31,11 @@ func (w *OutputWriter) JSON(opts ...output.JSONOptionFunc) *output.JSON {
 	return output.NewJSON(w.writer, opts...)
 }
 
+// YAML creates a new YAML output that can be rendered to the destination.
+func (w *OutputWriter) YAML() *output.YAML {
+	return output.NewYAML(w.writer)
+}
+
 // Infoln writes a line of informational output to the destination, appending a newline at the end. Spaces are added
 // between arguments. This outputs in all verbosity levels.
 func (w *OutputWriter) Infoln(a ...any) {

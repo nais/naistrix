@@ -23,6 +23,9 @@ const (
 type GlobalFlags struct {
 	// VerboseLevel indicates the verbosity level of the application.
 	VerboseLevel Count `name:"verbose" short:"v" usage:"Set verbosity level. Use -v for verbose, -vv for debug, -vvv for trace."`
+
+	// NoColors can be used to disable colored output.
+	NoColors bool `name:"no-colors" usage:"Disable colors in the output."`
 }
 
 // IsVerbose checks if the application is running in verbose mode (-v).

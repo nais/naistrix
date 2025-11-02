@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 )
 
@@ -116,9 +117,15 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 		SilenceErrors:      true,
 		SilenceUsage:       true,
 		DisableSuggestions: true,
+		PersistentPreRun: func(*cobra.Command, []string) {
+			if flags.NoColors {
+				pterm.DisableStyling()
+			}
+		},
 	}
 	app.rootCommand.CompletionOptions.SetDefaultShellCompDirective(cobra.ShellCompDirectiveNoFileComp)
 	app.rootCommand.SetOut(app.output.writer)
+	pterm.SetDefaultOutput(app.output.writer)
 
 	if err := setupFlags(app.rootCommand, nil, app.flags, app.rootCommand.PersistentFlags()); err != nil {
 		return nil, nil, fmt.Errorf("failed to setup application flags: %w", err)

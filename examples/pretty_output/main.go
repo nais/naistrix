@@ -29,6 +29,13 @@ func main() {
 			out.Warnln("A warning message.")
 			out.Errorln("An error message.")
 
+			// Messages with inline colors
+
+			out.Println("An <info>informational</info> message.")
+			out.Println("A <warn>warning</warn> message.")
+			out.Println("An <error>error</error> message.")
+			out.Println("Some <info>info</info>, a <warn>warning</warn> and an <error>error</error>.")
+
 			// Output based on verbosity levels
 
 			out.Verboseln("A verbose message, only shown when the application is run with -v or more.")

@@ -18,28 +18,28 @@ func TestOutputWriter_ConditionalOutput(t *testing.T) {
 	}{
 		{
 			name:     "regular output",
-			expected: "normal:n1 n2\n",
+			expected: "normal: n1 n2\n",
 			flags:    []string{},
 		},
 		{
 			name:     "verbose output",
-			expected: "normal:n1 n2\nverbose:v1 v2\n",
+			expected: "normal: n1 n2\nverbose: v1 v2\n",
 			flags:    []string{"-v"},
 		},
 		{
 			name:     "debug output",
-			expected: "normal:n1 n2\nverbose:v1 v2\ndebug:d1 d2\n",
+			expected: "normal: n1 n2\nverbose: v1 v2\nDEBUG: debug: d1 d2\n",
 			flags:    []string{"-vv"},
 		},
 		{
 			name:     "trace output",
-			expected: "normal:n1 n2\nverbose:v1 v2\ndebug:d1 d2\ntrace:t1 t2\n",
+			expected: "normal: n1 n2\nverbose: v1 v2\nDEBUG: debug: d1 d2\nTRACE: trace: t1 t2\n",
 			flags:    []string{"-vvv"},
 		},
 	}
 
-	pterm.RawOutput = true
-	defer func() { pterm.RawOutput = false }()
+	pterm.DisableStyling()
+	defer pterm.EnableStyling()
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -53,17 +53,11 @@ func TestOutputWriter_ConditionalOutput(t *testing.T) {
 				Name:  "test",
 				Title: "Test command",
 				RunFunc: func(_ context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
-					out.Printf("normal:")
-					out.Println("n1", "n2")
+					out.Println("normal:", "n1", "n2")
+					out.Verboseln("verbose:", "v1", "v2")
+					out.Debugln("debug:", "d1", "d2")
+					out.Traceln("trace:", "t1", "t2")
 
-					out.Verbosef("verbose:")
-					out.Verboseln("v1", "v2")
-
-					out.Debugf("debug:")
-					out.Debugln("d1", "d2")
-
-					out.Tracef("trace:")
-					out.Traceln("t1", "t2")
 					return nil
 				},
 			})
@@ -83,8 +77,8 @@ func TestOutputWriter_ConditionalOutput(t *testing.T) {
 }
 
 func TestOutputWriter_OutputStyles(t *testing.T) {
-	pterm.RawOutput = true
-	defer func() { pterm.RawOutput = false }()
+	pterm.DisableStyling()
+	defer pterm.EnableStyling()
 
 	var buf bytes.Buffer
 	app, _, err := naistrix.NewApplication("app", "title", "v0.0.0", naistrix.ApplicationWithWriter(&buf))
@@ -104,6 +98,12 @@ func TestOutputWriter_OutputStyles(t *testing.T) {
 
 			out.Errorf("some error\n")
 			out.Errorln("more", "error")
+
+			out.Println("An <info>informational</info> message.")
+			out.Println("A <warn>warning</warn> message.")
+			out.Println("An <error>error</error> message.")
+			out.Println("Some <info>info</info>, a <warn>warning</warn> and an <error>error</error>.")
+
 			return nil
 		},
 	})
@@ -123,6 +123,10 @@ func TestOutputWriter_OutputStyles(t *testing.T) {
 		"WARNING: more warning",
 		"ERROR: some error",
 		"ERROR: more error",
+		"An informational message.",
+		"A warning message.",
+		"An error message.",
+		"Some info, a warning and an error.",
 	}
 
 	for _, substr := range expectedSubstrings {

@@ -3,11 +3,16 @@ package naistrix
 import (
 	"fmt"
 	"io"
+	"regexp"
 
 	"github.com/nais/naistrix/output"
 	"github.com/pterm/pterm"
 )
 
+// coloredText is a regular expression that matches custom tags for info, warn, and error formatting inline in a string.
+var coloredText = regexp.MustCompile(`<(info|warn|error)>(.*?)</(info|warn|error)>`)
+
+// OutputWriter is used to write output to the user, with support for different verbosity levels and output formats.
 type OutputWriter struct {
 	writer io.Writer
 	level  *Count
@@ -72,22 +77,22 @@ func (w *OutputWriter) Errorf(format string, a ...any) {
 // Println writes a line of output to the destination, appending a newline at the end. Spaces are added between
 // arguments. This outputs in all verbosity levels.
 func (w *OutputWriter) Println(a ...any) {
-	_, _ = fmt.Fprintln(w.writer, a...)
+	_, _ = fmt.Fprintln(w.writer, colorizeMultiple(a)...)
 }
 
 // Printf writes formatted output to the destination. This outputs in all verbosity levels.
 func (w *OutputWriter) Printf(format string, a ...any) {
-	_, _ = fmt.Fprintf(w.writer, format, a...)
+	_, _ = fmt.Fprintf(w.writer, colorize(format), a...)
 }
 
-// Verboseln writes a line of verbose output to the destination, appending a newline at the end. Spaces are added between
-// arguments. This outputs in OutputVerbosityLevelVerbose and higher levels.
+// Verboseln writes a line of verbose output to the destination, appending a newline at the end. Spaces are added
+// between arguments. This outputs in OutputVerbosityLevelVerbose and higher levels.
 func (w *OutputWriter) Verboseln(a ...any) {
 	if w == nil || *w.level < OutputVerbosityLevelVerbose {
 		return
 	}
 
-	_, _ = fmt.Fprintln(w.writer, a...)
+	_, _ = fmt.Fprintln(w.writer, colorizeMultiple(a)...)
 }
 
 // Verbosef writes formatted verbose output to the destination. This outputs in OutputVerbosityLevelVerbose and higher
@@ -97,11 +102,11 @@ func (w *OutputWriter) Verbosef(format string, a ...any) {
 		return
 	}
 
-	_, _ = fmt.Fprintf(w.writer, format, a...)
+	_, _ = fmt.Fprintf(w.writer, colorize(format), a...)
 }
 
-// Debugln writes a line of debug output to the destination, appending a newline at the end. Spaces are added
-// between arguments. This outputs in OutputVerbosityLevelDebug and higher levels.
+// Debugln writes a line of debug output to the destination, appending a newline at the end. Spaces are added between
+// arguments. This outputs in OutputVerbosityLevelDebug and higher levels.
 func (w *OutputWriter) Debugln(a ...any) {
 	if w == nil || *w.level < OutputVerbosityLevelDebug {
 		return
@@ -109,9 +114,7 @@ func (w *OutputWriter) Debugln(a ...any) {
 
 	pterm.EnableDebugMessages()
 	defer pterm.DisableDebugMessages()
-	prefix := pterm.Debug.Prefix
-	prefix.Text = ""
-	pterm.Debug.WithWriter(w.writer).WithPrefix(pterm.Prefix{}).Println(a...)
+	pterm.Debug.WithWriter(w.writer).Println(colorizeMultiple(a)...)
 }
 
 // Debugf writes formatted debug output to the destination. This outputs in OutputVerbosityLevelDebug and higher levels.
@@ -122,14 +125,11 @@ func (w *OutputWriter) Debugf(format string, a ...any) {
 
 	pterm.EnableDebugMessages()
 	defer pterm.DisableDebugMessages()
-	prefix := pterm.Debug.Prefix
-	prefix.Text = ""
-	prefix.Style = nil
-	pterm.Debug.WithWriter(w.writer).WithPrefix(pterm.Prefix{}).Printf(format, a...)
+	pterm.Debug.WithWriter(w.writer).Printf(colorize(format), a...)
 }
 
-// Traceln writes a line of trace output to the destination, appending a newline at the end. Spaces are added
-// between arguments. This outputs in OutputVerbosityLevelTrace level.
+// Traceln writes a line of trace output to the destination, appending a newline at the end. Spaces are added between
+// arguments. This outputs in OutputVerbosityLevelTrace level.
 func (w *OutputWriter) Traceln(a ...any) {
 	if w == nil || *w.level < OutputVerbosityLevelTrace {
 		return
@@ -138,8 +138,8 @@ func (w *OutputWriter) Traceln(a ...any) {
 	pterm.EnableDebugMessages()
 	defer pterm.DisableDebugMessages()
 	prefix := pterm.Debug.Prefix
-	prefix.Text = ""
-	pterm.Debug.WithWriter(w.writer).WithPrefix(prefix).Println(a...)
+	prefix.Text = " TRACE "
+	pterm.Debug.WithWriter(w.writer).WithPrefix(prefix).Println(colorizeMultiple(a)...)
 }
 
 // Tracef writes formatted trace output to the destination. This outputs in OutputVerbosityLevelTrace level.
@@ -151,6 +151,41 @@ func (w *OutputWriter) Tracef(format string, a ...any) {
 	pterm.EnableDebugMessages()
 	defer pterm.DisableDebugMessages()
 	prefix := pterm.Debug.Prefix
-	prefix.Text = ""
-	pterm.Debug.WithWriter(w.writer).WithPrefix(prefix).Printf(format, a...)
+	prefix.Text = " TRACE "
+	pterm.Debug.WithWriter(w.writer).WithPrefix(prefix).Printf(colorize(format), a...)
+}
+
+// colorizeMultiple applies colorization to a slice of values. Each value will be converted to a string.
+func colorizeMultiple(s []any) []any {
+	ret := make([]any, len(s))
+	for i, str := range s {
+		ret[i] = colorize(fmt.Sprint(str))
+	}
+	return ret
+}
+
+// colorize applies colorization to a string based on custom tags.
+func colorize(s string) string {
+	return coloredText.ReplaceAllStringFunc(s, func(s string) string {
+		m := coloredText.FindStringSubmatch(s)
+		openTag, content, closeTag := m[1], m[2], m[3]
+
+		if openTag != closeTag {
+			return s
+		}
+
+		var printer func(...any) string
+		switch openTag {
+		case "info":
+			printer = pterm.FgLightCyan.Sprint
+		case "warn":
+			printer = pterm.FgYellow.Sprint
+		case "error":
+			printer = pterm.FgLightRed.Sprint
+		default:
+			return s
+		}
+
+		return printer(content)
+	})
 }

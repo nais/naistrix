@@ -20,6 +20,7 @@ type OutputWriter struct {
 
 // NewOutputWriter creates a new output writer.
 func NewOutputWriter(writer io.Writer, level *Count) *OutputWriter {
+	pterm.SetDefaultOutput(writer)
 	return &OutputWriter{
 		writer: writer,
 		level:  level,
@@ -77,12 +78,12 @@ func (w *OutputWriter) Errorf(format string, a ...any) {
 // Println writes a line of output to the destination, appending a newline at the end. Spaces are added between
 // arguments. This outputs in all verbosity levels.
 func (w *OutputWriter) Println(a ...any) {
-	_, _ = fmt.Fprintln(w.writer, colorizeMultiple(a)...)
+	pterm.Println(colorizeMultiple(a)...)
 }
 
 // Printf writes formatted output to the destination. This outputs in all verbosity levels.
 func (w *OutputWriter) Printf(format string, a ...any) {
-	_, _ = fmt.Fprintf(w.writer, colorize(format), a...)
+	pterm.Printf(colorize(format), a...)
 }
 
 // Verboseln writes a line of verbose output to the destination, appending a newline at the end. Spaces are added

@@ -23,6 +23,9 @@ type Application struct {
 	// version is the version of the application, used in the help output.
 	version string
 
+	// writer is the output destination for the OutputWriter used in the application. Defaults to os.Stdout.
+	writer io.Writer
+
 	// output is the output writer used in the application.
 	output *OutputWriter
 
@@ -44,11 +47,11 @@ type Application struct {
 // ApplicationOptionFunc is a function that configures an Application.
 type ApplicationOptionFunc func(*Application)
 
-// ApplicationWithWriter sets the output destination for the output writer used in the application. This defaults to
+// ApplicationWithWriter sets the output destination for the OutputWriter used in the application. This defaults to
 // os.Stdout.
 func ApplicationWithWriter(w io.Writer) ApplicationOptionFunc {
 	return func(a *Application) {
-		a.output.writer = w
+		a.writer = w
 	}
 }
 
@@ -101,11 +104,14 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 		title:   title,
 		version: version,
 		flags:   flags,
-		output:  NewOutputWriter(os.Stdout, &flags.VerboseLevel),
 	}
 
 	for _, opt := range opts {
 		opt(app)
+	}
+
+	if app.writer == nil {
+		app.writer = os.Stdout
 	}
 
 	cobra.EnableTraverseRunHooks = true
@@ -124,8 +130,8 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 		},
 	}
 	app.rootCommand.CompletionOptions.SetDefaultShellCompDirective(cobra.ShellCompDirectiveNoFileComp)
-	app.rootCommand.SetOut(app.output.writer)
-	pterm.SetDefaultOutput(app.output.writer)
+	app.rootCommand.SetOut(app.writer)
+	app.output = NewOutputWriter(app.writer, &flags.VerboseLevel)
 
 	if err := setupFlags(app.rootCommand, nil, app.flags, app.rootCommand.PersistentFlags()); err != nil {
 		return nil, nil, fmt.Errorf("failed to setup application flags: %w", err)

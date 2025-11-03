@@ -23,17 +23,17 @@ func TestOutputWriter_ConditionalOutput(t *testing.T) {
 		},
 		{
 			name:     "verbose output",
-			expected: "normal: n1 n2\nverbose: v1 v2\n",
+			expected: "normal: n1 n2\nverbose: v1 v2\nverbosef: v1\n",
 			flags:    []string{"-v"},
 		},
 		{
 			name:     "debug output",
-			expected: "normal: n1 n2\nverbose: v1 v2\nDEBUG: debug: d1 d2\n",
+			expected: "normal: n1 n2\nverbose: v1 v2\nverbosef: v1\nDEBUG: debug: d1 d2\nDEBUG: debugf: d1\n",
 			flags:    []string{"-vv"},
 		},
 		{
 			name:     "trace output",
-			expected: "normal: n1 n2\nverbose: v1 v2\nDEBUG: debug: d1 d2\nTRACE: trace: t1 t2\n",
+			expected: "normal: n1 n2\nverbose: v1 v2\nverbosef: v1\nDEBUG: debug: d1 d2\nDEBUG: debugf: d1\nTRACE: trace: t1 t2\nTRACE: tracef: t1\n",
 			flags:    []string{"-vvv"},
 		},
 	}
@@ -55,8 +55,11 @@ func TestOutputWriter_ConditionalOutput(t *testing.T) {
 				RunFunc: func(_ context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
 					out.Println("normal:", "n1", "n2")
 					out.Verboseln("verbose:", "v1", "v2")
+					out.Verbosef("verbosef: %s\n", "v1")
 					out.Debugln("debug:", "d1", "d2")
+					out.Debugf("debugf: %s\n", "d1")
 					out.Traceln("trace:", "t1", "t2")
+					out.Tracef("tracef: %s\n", "t1")
 
 					return nil
 				},

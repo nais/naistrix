@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"strings"
 
@@ -100,8 +101,8 @@ func initializeConfig(cmd *cobra.Command, defaultCfgPath string) error {
 	}
 
 	if err := viper.ReadInConfig(); err != nil {
-		var configFileNotFoundError viper.ConfigFileNotFoundError
-		if !errors.As(err, &configFileNotFoundError) {
+		var pathErr *fs.PathError // ignore error if it's due to missing config file
+		if !errors.As(err, &pathErr) {
 			return err
 		}
 	}
@@ -160,11 +161,14 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 		SilenceErrors:      true,
 		SilenceUsage:       true,
 		DisableSuggestions: true,
-		PersistentPreRun: func(cmd *cobra.Command, _ []string) {
-			initializeConfig(cmd, defaultCfgPath)
+		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+			if err := initializeConfig(cmd, defaultCfgPath); err != nil {
+				return fmt.Errorf("failed to initialize configuration: %w", err)
+			}
 			if flags.NoColors {
 				pterm.DisableStyling()
 			}
+			return nil
 		},
 	}
 	app.rootCommand.CompletionOptions.SetDefaultShellCompDirective(cobra.ShellCompDirectiveNoFileComp)
@@ -176,6 +180,14 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 	}
 
 	app.rootCommand.PersistentFlags().StringVar(&cfgFile, "config", "", fmt.Sprintf("Config file location (defaults to %s)", defaultCfgPath))
+
+	// Add built-in config command
+	configCmd := configCommand()
+	if err := configCmd.init(app.name, app.output, app.rootCommand.UsageTemplate()); err != nil {
+		return nil, nil, fmt.Errorf("failed to initialize config command: %w", err)
+	}
+	app.rootCommand.AddCommand(configCmd.cobraCmd)
+	app.commands = append(app.commands, configCmd)
 
 	return app, app.flags, nil
 }
@@ -225,7 +237,7 @@ func (a *Application) AddGlobalFlags(flags any) error {
 
 // Run executes the application. At least one command must be registered using the AddCommand method.
 func (a *Application) Run(opts ...RunOptionFunc) error {
-	if len(a.commands) == 0 {
+	if len(a.commands) == 1 {
 		return fmt.Errorf("the application must have at least one command to be able to run")
 	}
 

@@ -225,7 +225,8 @@ func syncViperToFlags(flags any, viper interface {
 	GetDuration(key string) time.Duration
 	GetStringSlice(key string) []string
 	IsSet(key string) bool
-}) error {
+},
+) error {
 	if flags == nil {
 		return nil
 	}

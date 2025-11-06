@@ -8,6 +8,7 @@ import (
 
 	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 // Argument represents a positional argument for a command. All arguments for a command will be grouped together in a
@@ -281,6 +282,18 @@ func (c *Command) init(cmd string, out *OutputWriter, usageTemplate string) erro
 		RunE:              c.cobraRun(out),
 		ValidArgsFunction: c.autocomplete(),
 		PersistentPreRunE: func(co *cobra.Command, args []string) error {
+			// Sync command-specific flags from Viper
+			if c.Flags != nil {
+				if err := syncViperToFlags(c.Flags, viper.GetViper()); err != nil {
+					return fmt.Errorf("failed to sync command flags: %w", err)
+				}
+			}
+			if c.StickyFlags != nil {
+				if err := syncViperToFlags(c.StickyFlags, viper.GetViper()); err != nil {
+					return fmt.Errorf("failed to sync sticky flags: %w", err)
+				}
+			}
+
 			if c.ValidateFunc == nil {
 				return nil
 			}

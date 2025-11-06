@@ -3,6 +3,7 @@ package naistrix
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 // Application represents a CLI application with a set of commands.
@@ -83,6 +85,35 @@ func RunWithArgs(args []string) RunOptionFunc {
 	}
 }
 
+var cfgFile string
+
+func initializeConfig(cmd *cobra.Command, defaultCfgPath string) error {
+	viper.SetEnvPrefix(strings.ToUpper(cmd.Root().Name()))
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_", "-", "_"))
+	viper.AutomaticEnv()
+	viper.SetConfigType("yaml")
+
+	if cfgFile != "" {
+		viper.SetConfigFile(cfgFile)
+	} else {
+		viper.SetConfigFile(defaultCfgPath)
+	}
+
+	if err := viper.ReadInConfig(); err != nil {
+		var configFileNotFoundError viper.ConfigFileNotFoundError
+		if !errors.As(err, &configFileNotFoundError) {
+			return err
+		}
+	}
+
+	err := viper.BindPFlags(cmd.Flags())
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // NewApplication creates a new Application with the given name, title and version. Use the available
 // ApplicationOptionFunc functions to configure the application to your needs.
 func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) (*Application, *GlobalFlags, error) {
@@ -114,6 +145,12 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 		app.writer = os.Stdout
 	}
 
+	cfgDir, err := os.UserConfigDir()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get user config directory: %w", err)
+	}
+	defaultCfgPath := cfgDir + "/." + name + "/config.yaml"
+
 	cobra.EnableTraverseRunHooks = true
 
 	app.rootCommand = &cobra.Command{
@@ -123,7 +160,8 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 		SilenceErrors:      true,
 		SilenceUsage:       true,
 		DisableSuggestions: true,
-		PersistentPreRun: func(*cobra.Command, []string) {
+		PersistentPreRun: func(cmd *cobra.Command, _ []string) {
+			initializeConfig(cmd, defaultCfgPath)
 			if flags.NoColors {
 				pterm.DisableStyling()
 			}
@@ -137,11 +175,12 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 		return nil, nil, fmt.Errorf("failed to setup application flags: %w", err)
 	}
 
+	app.rootCommand.PersistentFlags().StringVar(&cfgFile, "config", "", fmt.Sprintf("Config file location (defaults to %s)", defaultCfgPath))
+
 	return app, app.flags, nil
 }
 
-// AddCommand adds one or more commands to the application. The application must have at least one command to be able to
-// run.
+// AddCommand adds one or more commands to the application. The application must have at least one command to be able to run.
 func (a *Application) AddCommand(cmd *Command, cmds ...*Command) error {
 	all := append([]*Command{cmd}, cmds...)
 	a.commands = append(a.commands, all...)

@@ -213,3 +213,73 @@ func validateFlags(flags any) error {
 
 	return nil
 }
+
+// syncViperToFlags syncs values from Viper back to the flags struct.
+// This ensures that values from config files and environment variables
+// are reflected in the flags struct, not just CLI flag values.
+func syncViperToFlags(flags any, viper interface {
+	GetString(key string) string
+	GetBool(key string) bool
+	GetInt(key string) int
+	GetUint(key string) uint
+	GetDuration(key string) time.Duration
+	GetStringSlice(key string) []string
+	IsSet(key string) bool
+}) error {
+	if flags == nil {
+		return nil
+	}
+
+	fields := reflect.TypeOf(flags).Elem()
+	values := reflect.ValueOf(flags).Elem()
+
+	for i := range fields.NumField() {
+		field := fields.Field(i)
+		value := values.Field(i)
+
+		if !field.IsExported() || !value.CanAddr() || !value.CanSet() {
+			continue
+		}
+
+		// Handle embedded structs (like GlobalFlags)
+		if value.Kind() == reflect.Pointer && value.Elem().Kind() == reflect.Struct {
+			if err := syncViperToFlags(value.Interface(), viper); err != nil {
+				return err
+			}
+			continue
+		}
+
+		flagName, ok := field.Tag.Lookup("name")
+		if !ok {
+			flagName = strings.ToLower(field.Name)
+		}
+
+		// Only update if Viper has a value for this key
+		if !viper.IsSet(flagName) {
+			continue
+		}
+
+		// Sync the value from Viper to the struct field
+		switch value.Kind() {
+		case reflect.String:
+			value.SetString(viper.GetString(flagName))
+		case reflect.Bool:
+			value.SetBool(viper.GetBool(flagName))
+		case reflect.Int:
+			value.SetInt(int64(viper.GetInt(flagName)))
+		case reflect.Uint:
+			value.SetUint(uint64(viper.GetUint(flagName)))
+		case reflect.Slice:
+			if value.Type().Elem().Kind() == reflect.String {
+				value.Set(reflect.ValueOf(viper.GetStringSlice(flagName)))
+			}
+		case reflect.Int64:
+			// Handle time.Duration
+			if value.Type() == reflect.TypeOf(time.Duration(0)) {
+				value.Set(reflect.ValueOf(viper.GetDuration(flagName)))
+			}
+		}
+	}
+
+	return nil
+}

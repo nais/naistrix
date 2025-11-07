@@ -150,13 +150,9 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 		return nil, nil, fmt.Errorf("failed to setup application flags: %w", err)
 	}
 
-	// Add built-in config command
-	configCmd := configCommand()
-	if err := configCmd.init(app.name, app.output, app.rootCommand.UsageTemplate()); err != nil {
+	if err := app.AddCommand(configCommand()); err != nil {
 		return nil, nil, fmt.Errorf("failed to initialize config command: %w", err)
 	}
-	app.rootCommand.AddCommand(configCmd.cobraCmd)
-	app.commands = append(app.commands, configCmd)
 
 	return app, app.flags, nil
 }

@@ -6,12 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
 	"strings"
 
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
 
@@ -86,35 +86,6 @@ func RunWithArgs(args []string) RunOptionFunc {
 	}
 }
 
-var cfgFile string
-
-func initializeConfig(cmd *cobra.Command, defaultCfgPath string) error {
-	viper.SetEnvPrefix(strings.ToUpper(cmd.Root().Name()))
-	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_", "-", "_"))
-	viper.AutomaticEnv()
-	viper.SetConfigType("yaml")
-
-	if cfgFile != "" {
-		viper.SetConfigFile(cfgFile)
-	} else {
-		viper.SetConfigFile(defaultCfgPath)
-	}
-
-	if err := viper.ReadInConfig(); err != nil {
-		var pathErr *fs.PathError // ignore error if it's due to missing config file
-		if !errors.As(err, &pathErr) {
-			return err
-		}
-	}
-
-	err := viper.BindPFlags(cmd.Flags())
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // NewApplication creates a new Application with the given name, title and version. Use the available
 // ApplicationOptionFunc functions to configure the application to your needs.
 func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) (*Application, *GlobalFlags, error) {
@@ -130,12 +101,18 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 		return nil, nil, fmt.Errorf("application version must not be empty")
 	}
 
-	flags := &GlobalFlags{}
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get user config directory: %w", err)
+	}
+
 	app := &Application{
 		name:    name,
 		title:   title,
 		version: version,
-		flags:   flags,
+		flags: &GlobalFlags{
+			Config: configDir + "/." + name + "/config.yaml",
+		},
 	}
 
 	for _, opt := range opts {
@@ -145,12 +122,6 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 	if app.writer == nil {
 		app.writer = os.Stdout
 	}
-
-	cfgDir, err := os.UserConfigDir()
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get user config directory: %w", err)
-	}
-	defaultCfgPath := cfgDir + "/." + name + "/config.yaml"
 
 	cobra.EnableTraverseRunHooks = true
 
@@ -162,10 +133,10 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 		SilenceUsage:       true,
 		DisableSuggestions: true,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
-			if err := initializeConfig(cmd, defaultCfgPath); err != nil {
+			if err := app.initializeConfig(cmd.Flags()); err != nil {
 				return fmt.Errorf("failed to initialize configuration: %w", err)
 			}
-			if flags.NoColors {
+			if app.flags.NoColors {
 				pterm.DisableStyling()
 			}
 			return nil
@@ -173,13 +144,11 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 	}
 	app.rootCommand.CompletionOptions.SetDefaultShellCompDirective(cobra.ShellCompDirectiveNoFileComp)
 	app.rootCommand.SetOut(app.writer)
-	app.output = NewOutputWriter(app.writer, &flags.VerboseLevel)
+	app.output = NewOutputWriter(app.writer, &app.flags.VerboseLevel)
 
 	if err := setupFlags(app.rootCommand, nil, app.flags, app.rootCommand.PersistentFlags()); err != nil {
 		return nil, nil, fmt.Errorf("failed to setup application flags: %w", err)
 	}
-
-	app.rootCommand.PersistentFlags().StringVar(&cfgFile, "config", "", fmt.Sprintf("Config file location (defaults to %s)", defaultCfgPath))
 
 	// Add built-in config command
 	configCmd := configCommand()
@@ -266,6 +235,31 @@ func (a *Application) ExecutedCommand() []string {
 		return nil
 	}
 	return strings.Split(a.executedCommand.CommandPath(), " ")
+}
+
+// initializeConfig initializes the configuration for the application using Viper. It reads the configuration file
+// specified by the global --config flag.
+func (a *Application) initializeConfig(flags *pflag.FlagSet) error {
+	a.output.Debugf("Initializing configuration using file %q.\n", a.flags.Config)
+
+	viper.SetEnvPrefix(strings.ToUpper(a.name))
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_", "-", "_"))
+	viper.AutomaticEnv()
+	viper.SetConfigFile(a.flags.Config)
+	viper.SetConfigType("yaml")
+
+	if err := viper.ReadInConfig(); err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		a.output.Debugln("The specified configuration file does not exist.")
+	}
+
+	if err := viper.BindPFlags(flags); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // duplicate returns the first duplicate value found in the provided slice, or an empty string if no duplicates are

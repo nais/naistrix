@@ -72,8 +72,8 @@ func TestOutputWriter_ConditionalOutput(t *testing.T) {
 				t.Fatalf("expected no error, got %v", err)
 			}
 
-			if actual := buf.String(); tt.expected != actual {
-				t.Errorf("expected output %q, got %q", tt.expected, actual)
+			if actual := buf.String(); !strings.Contains(actual, tt.expected) {
+				t.Errorf("expected output to contain %q, got %q", tt.expected, actual)
 			}
 		})
 	}

@@ -237,10 +237,6 @@ func (a *Application) AddGlobalFlags(flags any) error {
 
 // Run executes the application. At least one command must be registered using the AddCommand method.
 func (a *Application) Run(opts ...RunOptionFunc) error {
-	if len(a.commands) == 1 {
-		return fmt.Errorf("the application must have at least one command to be able to run")
-	}
-
 	ro := &runOptions{}
 	for _, opt := range opts {
 		opt(ro)

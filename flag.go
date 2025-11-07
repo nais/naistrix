@@ -266,18 +266,18 @@ func syncViperToFlags(flags any, viper interface {
 			value.SetString(viper.GetString(flagName))
 		case reflect.Bool:
 			value.SetBool(viper.GetBool(flagName))
-		case reflect.Int:
-			value.SetInt(int64(viper.GetInt(flagName)))
+		case reflect.Int, reflect.Int64:
+			// Handle time.Duration
+			if value.Type() == reflect.TypeOf(time.Duration(0)) {
+				value.Set(reflect.ValueOf(viper.GetDuration(flagName)))
+			} else {
+				value.SetInt(int64(viper.GetInt(flagName)))
+			}
 		case reflect.Uint:
 			value.SetUint(uint64(viper.GetUint(flagName)))
 		case reflect.Slice:
 			if value.Type().Elem().Kind() == reflect.String {
 				value.Set(reflect.ValueOf(viper.GetStringSlice(flagName)))
-			}
-		case reflect.Int64:
-			// Handle time.Duration
-			if value.Type() == reflect.TypeOf(time.Duration(0)) {
-				value.Set(reflect.ValueOf(viper.GetDuration(flagName)))
 			}
 		}
 	}

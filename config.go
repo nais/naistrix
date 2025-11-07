@@ -3,6 +3,7 @@ package naistrix
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/spf13/viper"
 )
@@ -32,10 +33,13 @@ func configSet() *Command {
 			value := args.Get("value")
 
 			viper.Set(key, value)
-
 			if err := viper.WriteConfig(); err != nil {
-				// If config doesn't exist, create it
-				if err := viper.SafeWriteConfig(); err != nil {
+				// Config file doesn't exist, create it
+				if os.IsNotExist(err) || viper.ConfigFileUsed() == "" {
+					if err := viper.SafeWriteConfig(); err != nil {
+						return fmt.Errorf("failed to create config: %w", err)
+					}
+				} else {
 					return fmt.Errorf("failed to write config: %w", err)
 				}
 			}

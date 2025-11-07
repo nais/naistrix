@@ -157,7 +157,7 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 	return app, app.flags, nil
 }
 
-// AddCommand adds one or more commands to the application. The application must have at least one command to be able to run.
+// AddCommand adds one or more commands to the application.
 func (a *Application) AddCommand(cmd *Command, cmds ...*Command) error {
 	all := append([]*Command{cmd}, cmds...)
 	a.commands = append(a.commands, all...)
@@ -200,7 +200,7 @@ func (a *Application) AddGlobalFlags(flags any) error {
 	return nil
 }
 
-// Run executes the application. At least one command must be registered using the AddCommand method.
+// Run executes the application.
 func (a *Application) Run(opts ...RunOptionFunc) error {
 	ro := &runOptions{}
 	for _, opt := range opts {

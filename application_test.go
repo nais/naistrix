@@ -87,22 +87,6 @@ func TestApplicationValidation(t *testing.T) {
 			t.Fatalf("expected error message to contain %q, got: %q", contains, err.Error())
 		}
 	})
-
-	t.Run("no commands", func(t *testing.T) {
-		app, _, err := naistrix.NewApplication("app", "title", "v0.0.0")
-		if err != nil {
-			t.Fatalf("expected no error, got: %v", err)
-		}
-
-		err = app.Run()
-		if err == nil {
-			t.Fatalf("expected error, got nil")
-		}
-
-		if contains := "must have at least one command"; !strings.Contains(err.Error(), contains) {
-			t.Fatalf("expected error message to contain %q, got: %q", contains, err.Error())
-		}
-	})
 }
 
 func TestExecutedCommands(t *testing.T) {

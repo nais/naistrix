@@ -42,6 +42,12 @@ func (w *OutputWriter) YAML() *output.YAML {
 	return output.NewYAML(w.writer)
 }
 
+// Confirm prompts the user with a yes/no question and returns the response. The question will get a " [y/N]" suffix
+// automatically.
+func (w *OutputWriter) Confirm(question string) (bool, error) {
+	return pterm.DefaultInteractiveConfirm.Show(question)
+}
+
 // Infoln writes a line of informational output to the destination, appending a newline at the end. Spaces are added
 // between arguments. This outputs in all verbosity levels.
 func (w *OutputWriter) Infoln(a ...any) {

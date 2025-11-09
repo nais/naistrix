@@ -259,7 +259,7 @@ func (c *Command) validate() error {
 }
 
 // init validates and initializes the cobra.Command.
-func (c *Command) init(cmd string, out *OutputWriter, usageTemplate string) error {
+func (c *Command) init(cmd string, out *OutputWriter, usageTemplate string, config *viper.Viper) error {
 	if err := c.validate(); err != nil {
 		return err
 	}
@@ -282,14 +282,14 @@ func (c *Command) init(cmd string, out *OutputWriter, usageTemplate string) erro
 		RunE:              c.cobraRun(out),
 		ValidArgsFunction: c.autocomplete(),
 		PersistentPreRunE: func(co *cobra.Command, args []string) error {
-			// Sync command-specific flags from Viper
 			if c.Flags != nil {
-				if err := syncViperToFlags(c.Flags, viper.GetViper()); err != nil {
+				if err := syncViperToFlags(c.Flags, config); err != nil {
 					return fmt.Errorf("failed to sync command flags: %w", err)
 				}
 			}
+
 			if c.StickyFlags != nil {
-				if err := syncViperToFlags(c.StickyFlags, viper.GetViper()); err != nil {
+				if err := syncViperToFlags(c.StickyFlags, config); err != nil {
 					return fmt.Errorf("failed to sync sticky flags: %w", err)
 				}
 			}
@@ -330,7 +330,7 @@ func (c *Command) init(cmd string, out *OutputWriter, usageTemplate string) erro
 
 	commandsAndAliases := make([]string, 0)
 	for _, sub := range c.SubCommands {
-		if err := sub.init(cmd, out, usageTemplate); err != nil {
+		if err := sub.init(cmd, out, usageTemplate, config); err != nil {
 			return err
 		}
 		c.cobraCmd.AddCommand(sub.cobraCmd)

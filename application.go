@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/user"
+	"path/filepath"
 	"strings"
 
 	"github.com/pterm/pterm"
@@ -45,6 +47,9 @@ type Application struct {
 	// executedCommand is the internal cobra.Command that was executed when running the application with the Run()
 	// method.
 	executedCommand *cobra.Command
+
+	// config is the Viper configuration instance used for managing application configuration.
+	config *viper.Viper
 }
 
 // ApplicationOptionFunc is a function that configures an Application.
@@ -106,6 +111,11 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 		return nil, nil, fmt.Errorf("failed to get user config directory: %w", err)
 	}
 
+	v := viper.New()
+	v.SetEnvPrefix(strings.ToUpper(name))
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_", "-", "_"))
+	v.AutomaticEnv()
+
 	app := &Application{
 		name:    name,
 		title:   title,
@@ -113,6 +123,7 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 		flags: &GlobalFlags{
 			Config: configDir + "/." + name + "/config.yaml",
 		},
+		config: v,
 	}
 
 	for _, opt := range opts {
@@ -136,9 +147,11 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 			if err := app.initializeConfig(cmd.Flags()); err != nil {
 				return fmt.Errorf("failed to initialize configuration: %w", err)
 			}
+
 			if app.flags.NoColors {
 				pterm.DisableStyling()
 			}
+
 			return nil
 		},
 	}
@@ -150,8 +163,8 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 		return nil, nil, fmt.Errorf("failed to setup application flags: %w", err)
 	}
 
-	if err := app.AddCommand(configCommand()); err != nil {
-		return nil, nil, fmt.Errorf("failed to initialize config command: %w", err)
+	if err := app.AddCommand(configCommand(app.config)); err != nil {
+		return nil, nil, fmt.Errorf("failed to add config command: %w", err)
 	}
 
 	return app, app.flags, nil
@@ -173,8 +186,8 @@ func (a *Application) AddCommand(cmd *Command, cmds ...*Command) error {
 			})
 		}
 
-		if err := c.init(a.name, a.output, usageTemplate); err != nil {
-			return err
+		if err := c.init(a.name, a.output, usageTemplate, a.config); err != nil {
+			return fmt.Errorf("failed to initialize command %q: %w", c.Name, err)
 		}
 
 		a.rootCommand.AddCommand(c.cobraCmd)
@@ -194,7 +207,7 @@ func (a *Application) AddCommand(cmd *Command, cmds ...*Command) error {
 // application. The passed flags must be a pointer to a struct where each field represents a flag.
 func (a *Application) AddGlobalFlags(flags any) error {
 	if err := setupFlags(a.rootCommand, nil, flags, a.rootCommand.PersistentFlags()); err != nil {
-		return fmt.Errorf("unable to add global flags: %w", err)
+		return fmt.Errorf("failed to setup global flags: %w", err)
 	}
 
 	return nil
@@ -236,23 +249,24 @@ func (a *Application) ExecutedCommand() []string {
 // initializeConfig initializes the configuration for the application using Viper. It reads the configuration file
 // specified by the global --config flag.
 func (a *Application) initializeConfig(flags *pflag.FlagSet) error {
-	a.output.Debugf("Initializing configuration using file %q.\n", a.flags.Config)
-
-	viper.SetEnvPrefix(strings.ToUpper(a.name))
-	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_", "-", "_"))
-	viper.AutomaticEnv()
-	viper.SetConfigFile(a.flags.Config)
-	viper.SetConfigType("yaml")
-
-	if err := viper.ReadInConfig(); err != nil {
-		if !errors.Is(err, os.ErrNotExist) {
-			return err
-		}
-		a.output.Debugln("The specified configuration file does not exist.")
+	p, err := resolveHomeDir(a.flags.Config)
+	if err != nil {
+		return fmt.Errorf("failed to resolve home directory in config file path: %w", err)
 	}
 
-	if err := viper.BindPFlags(flags); err != nil {
-		return err
+	a.flags.Config = p
+	a.config.SetConfigFile(a.flags.Config)
+	a.output.Debugf("Initializing configuration using file %q\n", a.flags.Config)
+
+	if err := a.config.ReadInConfig(); err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("failed to read configuration file: %w", err)
+		}
+		a.output.Debugln("The specified configuration file does not exist")
+	}
+
+	if err := a.config.BindPFlags(flags); err != nil {
+		return fmt.Errorf("failed to bind flags to configuration: %w", err)
 	}
 
 	return nil
@@ -269,4 +283,16 @@ func duplicate(values []string) string {
 		seen[v] = struct{}{}
 	}
 	return ""
+}
+
+// resolveHomeDir resolves the home directory in the given path if it starts with "~/".
+func resolveHomeDir(path string) (string, error) {
+	if len(path) > 1 && path[:2] == "~/" {
+		u, err := user.Current()
+		if err != nil {
+			return "", err
+		}
+		path = filepath.Join(u.HomeDir, path[2:])
+	}
+	return path, nil
 }

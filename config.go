@@ -7,10 +7,12 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 
 	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/spf13/viper"
+	"golang.org/x/exp/maps"
 )
 
 // configCommand creates the built-in config command for managing configuration.
@@ -41,6 +43,14 @@ func configSet(config *viper.Viper) *Command {
 		},
 		Title:       "Set a configuration value",
 		Description: "Set a configuration value in the configuration file. This value will be used as default for relevant flags throughout the application.",
+		AutoCompleteFunc: func(_ context.Context, args *Arguments, _ string) ([]string, string) {
+			settings, err := getSettingsFromConfigFile(config.ConfigFileUsed())
+			if err != nil {
+				return []string{}, ""
+			}
+
+			return maps.Keys(settings), "Choose an existing key or create a new one"
+		},
 		RunFunc: func(_ context.Context, args *Arguments, out *OutputWriter) error {
 			configFilePath := config.ConfigFileUsed()
 			dir := filepath.Dir(configFilePath)
@@ -84,10 +94,11 @@ func configSet(config *viper.Viper) *Command {
 
 func configGet(config *viper.Viper) *Command {
 	return &Command{
-		Name:        "get",
-		Title:       "Get one or more configuration values.",
-		Description: "This command retrieves one or more configuration values from the configuration file.",
-		Args:        []Argument{{Name: "key", Repeatable: true}},
+		Name:             "get",
+		Title:            "Get one or more configuration values.",
+		Description:      "This command retrieves one or more configuration values from the configuration file.",
+		Args:             []Argument{{Name: "key", Repeatable: true}},
+		AutoCompleteFunc: autoCompleteConfigurationKeys(config.ConfigFileUsed()),
 		RunFunc: func(_ context.Context, args *Arguments, out *OutputWriter) error {
 			settings, err := getSettingsFromConfigFile(config.ConfigFileUsed())
 			if err != nil {
@@ -148,10 +159,11 @@ func configList(config *viper.Viper) *Command {
 
 func configUnset(config *viper.Viper) *Command {
 	return &Command{
-		Name:        "unset",
-		Title:       "Unset one or more configuration values.",
-		Description: "This command removes one or more configuration values from the configuration file completely.",
-		Args:        []Argument{{Name: "key", Repeatable: true}},
+		Name:             "unset",
+		Title:            "Unset one or more configuration values.",
+		Description:      "This command removes one or more configuration values from the configuration file completely.",
+		Args:             []Argument{{Name: "key", Repeatable: true}},
+		AutoCompleteFunc: autoCompleteConfigurationKeys(config.ConfigFileUsed()),
 		RunFunc: func(_ context.Context, args *Arguments, out *OutputWriter) error {
 			settings, err := getSettingsFromConfigFile(config.ConfigFileUsed())
 			if err != nil {
@@ -207,4 +219,35 @@ func getSettingsFromConfigFile(path string) (map[string]any, error) {
 	}
 
 	return v.AllSettings(), nil
+}
+
+// autoCompleteConfigurationKeys returns an AutoCompleteFunc that suggests configuration keys from the given config
+// file.
+func autoCompleteConfigurationKeys(configFile string) AutoCompleteFunc {
+	settings, err := getSettingsFromConfigFile(configFile)
+	if err != nil {
+		return nil
+	}
+
+	return func(_ context.Context, args *Arguments, _ string) ([]string, string) {
+		var inArgs []string
+		if args.Len() > 0 {
+			inArgs = args.GetRepeatable("key")
+		}
+
+		keys := make([]string, 0)
+		for key := range settings {
+			if slices.Contains(inArgs, key) {
+				continue
+			}
+
+			keys = append(keys, key)
+		}
+
+		if len(keys) == 0 {
+			return []string{}, ""
+		}
+
+		return keys, "Available configuration keys"
+	}
 }

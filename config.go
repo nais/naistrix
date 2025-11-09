@@ -2,121 +2,209 @@ package naistrix
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
+	"path/filepath"
+	"sort"
 
+	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/spf13/viper"
 )
 
 // configCommand creates the built-in config command for managing configuration.
-func configCommand() *Command {
+func configCommand(config *viper.Viper) *Command {
 	return &Command{
 		Name:  "config",
-		Title: "Configuration management",
+		Title: "Manage configuration file / values.",
+		Description: heredoc.Docf(`
+			The config command allows you to set, get, unset and list configuration values stored in the configuration file.
+
+			Configuration values acts as defaults for various flags throughout the application.
+		`),
 		SubCommands: []*Command{
-			configSet(),
-			configGet(),
-			configList(),
-			configUnset(),
+			configSet(config),
+			configGet(config),
+			configList(config),
+			configUnset(config),
 		},
 	}
 }
 
-// configSet creates the 'config set' command.
-func configSet() *Command {
+func configSet(config *viper.Viper) *Command {
 	return &Command{
-		Name:  "set",
-		Args:  []Argument{{Name: "key"}, {Name: "value"}},
-		Title: "Set a configuration value",
-		RunFunc: func(ctx context.Context, args *Arguments, out *OutputWriter) error {
+		Name: "set",
+		Args: []Argument{
+			{Name: "key"},
+			{Name: "value"},
+		},
+		Title:       "Set a configuration value",
+		Description: "Set a configuration value in the configuration file. This value will be used as default for relevant flags throughout the application.",
+		RunFunc: func(_ context.Context, args *Arguments, out *OutputWriter) error {
+			configFilePath := config.ConfigFileUsed()
+			dir := filepath.Dir(configFilePath)
+
+			if _, err := os.Stat(dir); errors.Is(err, fs.ErrNotExist) {
+				if ok, err := out.Confirm("The directory for the configuration file (%s) does not exist, do you want to create it?", dir); err != nil {
+					return err
+				} else if !ok {
+					out.Warnln("Directory creation aborted; configuration not saved")
+					return nil
+				}
+			} else if err != nil {
+				return fmt.Errorf("unable to access directory %q for configuration file: %w", dir, err)
+			}
+
+			if err := ensureDirectoryExists(dir); err != nil {
+				return fmt.Errorf("unable to create directory %q for configuration file: %w", dir, err)
+			}
+
 			key := args.Get("key")
 			value := args.Get("value")
 
-			viper.Set(key, value)
-			if err := viper.WriteConfig(); err != nil {
-				// Config file doesn't exist, create it
-				if os.IsNotExist(err) || viper.ConfigFileUsed() == "" {
-					if err := viper.SafeWriteConfig(); err != nil {
-						return fmt.Errorf("failed to create config: %w", err)
-					}
-				} else {
-					return fmt.Errorf("failed to write config: %w", err)
-				}
+			out.Printf("Set <info>%s</info> = <info>%s</info>\n", key, value)
+
+			v := viper.New()
+			v.SetConfigFile(configFilePath)
+			if err := v.ReadInConfig(); err != nil && !errors.Is(err, os.ErrNotExist) {
+				return fmt.Errorf("unable to read configuration file %q: %w", configFilePath, err)
 			}
 
-			out.Printf("Set %s = %s\n", key, value)
+			v.Set(key, value)
+			if err := v.WriteConfig(); err != nil {
+				return fmt.Errorf("unable to save configuration file: %w", err)
+			}
+
+			out.Println("Configuration file updated")
 			return nil
 		},
 	}
 }
 
-// configGet creates the 'config get' command.
-func configGet() *Command {
+func configGet(config *viper.Viper) *Command {
 	return &Command{
-		Name:  "get",
-		Args:  []Argument{{Name: "key"}},
-		Title: "Get a configuration value",
-		RunFunc: func(ctx context.Context, args *Arguments, out *OutputWriter) error {
-			key := args.Get("key")
-
-			if !viper.IsSet(key) {
-				return fmt.Errorf("key %q is not set", key)
+		Name:        "get",
+		Title:       "Get one or more configuration values.",
+		Description: "This command retrieves one or more configuration values from the configuration file.",
+		Args:        []Argument{{Name: "key", Repeatable: true}},
+		RunFunc: func(_ context.Context, args *Arguments, out *OutputWriter) error {
+			settings, err := getSettingsFromConfigFile(config.ConfigFileUsed())
+			if err != nil {
+				return fmt.Errorf("unable to read configuration file: %w", err)
 			}
 
-			out.Printf("%s = %v\n", key, viper.Get(key))
+			for _, key := range args.GetRepeatable("key") {
+				value, ok := settings[key]
+				if !ok {
+					out.Printf("No such configuration key: <info>%s</info>, create the value using <info>config set %s <value></info>\n", key, key)
+					continue
+				}
+
+				out.Printf("<info>%s</info> = <info>%v</info>\n", key, value)
+
+			}
 			return nil
 		},
 	}
 }
 
-// configList creates the 'config list' command.
-func configList() *Command {
+func configList(config *viper.Viper) *Command {
 	return &Command{
 		Name:  "list",
-		Title: "List all configuration values",
-		RunFunc: func(ctx context.Context, args *Arguments, out *OutputWriter) error {
-			settings := viper.AllSettings()
+		Title: "List all configuration values found in the configuration file.",
+		RunFunc: func(_ context.Context, _ *Arguments, out *OutputWriter) error {
+			settings, err := getSettingsFromConfigFile(config.ConfigFileUsed())
+			if err != nil {
+				return fmt.Errorf("unable to read configuration file: %w", err)
+			}
+
 			if len(settings) == 0 {
-				out.Println("No configuration values set")
+				out.Printf("The configuration file <info>%s</info> is empty, or it does not yet exist\n", config.ConfigFileUsed())
+				out.Println("Use the <info>config set <key> <value></info> command to set configuration values")
 				return nil
 			}
 
-			for key, value := range settings {
-				out.Printf("%s = %v\n", key, value)
+			values := make([][]string, 0)
+			for k, v := range settings {
+				values = append(values, []string{k, fmt.Sprint(v)})
 			}
+
+			sort.SliceStable(values, func(i, j int) bool {
+				if len(values[i]) == 0 || len(values[j]) == 0 {
+					return false
+				}
+				return values[i][0] < values[j][0]
+			})
+
+			values = append([][]string{{"Key", "Value"}}, values...)
+			out.Printf("The following configuration values are set in <info>%s</info>:\n\n", config.ConfigFileUsed())
+			_ = out.Table().Render(values)
+			out.Println("\nUse the <info>config set <key> <value></info> command to update or create values, or the <info>config unset <value>[, <value>]</info> command to remove values")
 			return nil
 		},
 	}
 }
 
-// configUnset creates the 'config unset' command.
-func configUnset() *Command {
+func configUnset(config *viper.Viper) *Command {
 	return &Command{
-		Name:  "unset",
-		Args:  []Argument{{Name: "key"}},
-		Title: "Unset a configuration value",
-		RunFunc: func(ctx context.Context, args *Arguments, out *OutputWriter) error {
-			key := args.Get("key")
-
-			if !viper.IsSet(key) {
-				return fmt.Errorf("key %q is not set", key)
+		Name:        "unset",
+		Title:       "Unset one or more configuration values.",
+		Description: "This command removes one or more configuration values from the configuration file completely.",
+		Args:        []Argument{{Name: "key", Repeatable: true}},
+		RunFunc: func(_ context.Context, args *Arguments, out *OutputWriter) error {
+			settings, err := getSettingsFromConfigFile(config.ConfigFileUsed())
+			if err != nil {
+				return fmt.Errorf("unable to read configuration file: %w", err)
 			}
 
-			allSettings := viper.AllSettings()
-			delete(allSettings, key)
-
-			newViper := viper.New()
-			for k, v := range allSettings {
-				newViper.Set(k, v)
+			updated := false
+			for _, key := range args.GetRepeatable("key") {
+				value, ok := settings[key]
+				if !ok {
+					out.Printf("No such configuration key: <info>%s</info>\n", key)
+					continue
+				}
+				out.Printf("Unset <info>%s</info> (value: <info>%v</info>)\n", key, value)
+				delete(settings, key)
+				updated = true
 			}
 
-			newViper.SetConfigFile(viper.ConfigFileUsed())
-			if err := newViper.WriteConfig(); err != nil {
-				return fmt.Errorf("failed to write config: %w", err)
+			if !updated {
+				out.Println("Nothing to update")
+				return nil
 			}
 
-			out.Printf("Unset %s from configuration\n", key)
+			v := viper.New()
+			for key, value := range settings {
+				v.Set(key, value)
+			}
+
+			v.SetConfigFile(config.ConfigFileUsed())
+			if err := v.WriteConfig(); err != nil {
+				return fmt.Errorf("unable to save configuration file: %w", err)
+			}
+
+			out.Println("Configuration file updated")
 			return nil
 		},
 	}
+}
+
+// ensureDirectoryExists tries to create the directory that will hold the Viper configuration file.
+func ensureDirectoryExists(dir string) error {
+	return os.MkdirAll(dir, 0o750)
+}
+
+// getSettingsFromConfigFile returns settings from a Viper configuration file as a map.
+func getSettingsFromConfigFile(path string) (map[string]any, error) {
+	v := viper.New()
+	v.SetConfigFile(path)
+	if err := v.ReadInConfig(); errors.Is(err, os.ErrNotExist) {
+		return make(map[string]any), nil
+	} else if err != nil {
+		return nil, fmt.Errorf("unable to read configuration file %q: %w", path, err)
+	}
+
+	return v.AllSettings(), nil
 }

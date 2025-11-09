@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"github.com/spf13/viper"
 )
 
 const (
@@ -220,19 +221,13 @@ func validateFlags(flags any) error {
 // syncViperToFlags syncs values from Viper back to the flags struct.
 // This ensures that values from config files and environment variables
 // are reflected in the flags struct, not just CLI flag values.
-func syncViperToFlags(flags any, viper interface {
-	GetString(key string) string
-	GetBool(key string) bool
-	GetInt(key string) int
-	GetUint(key string) uint
-	GetDuration(key string) time.Duration
-	GetStringSlice(key string) []string
-	IsSet(key string) bool
-},
-) error {
+func syncViperToFlags(flags any, config *viper.Viper) error {
 	if flags == nil {
 		return nil
 	}
+
+	// TODO: loop through all viper keys, and find the matching struct field based on the "name" tag, if present, otherwise,
+	// use the field name in lowercase
 
 	fields := reflect.TypeOf(flags).Elem()
 	values := reflect.ValueOf(flags).Elem()
@@ -247,7 +242,7 @@ func syncViperToFlags(flags any, viper interface {
 
 		// Handle embedded structs (like GlobalFlags)
 		if value.Kind() == reflect.Pointer && value.Elem().Kind() == reflect.Struct {
-			if err := syncViperToFlags(value.Interface(), viper); err != nil {
+			if err := syncViperToFlags(value.Interface(), config); err != nil {
 				return err
 			}
 			continue
@@ -259,28 +254,28 @@ func syncViperToFlags(flags any, viper interface {
 		}
 
 		// Only update if Viper has a value for this key
-		if !viper.IsSet(flagName) {
+		if !config.IsSet(flagName) {
 			continue
 		}
 
 		// Sync the value from Viper to the struct field
 		switch value.Kind() {
 		case reflect.String:
-			value.SetString(viper.GetString(flagName))
+			value.SetString(config.GetString(flagName))
 		case reflect.Bool:
-			value.SetBool(viper.GetBool(flagName))
+			value.SetBool(config.GetBool(flagName))
 		case reflect.Int, reflect.Int64:
 			// Handle time.Duration
 			if value.Type() == reflect.TypeOf(time.Duration(0)) {
-				value.Set(reflect.ValueOf(viper.GetDuration(flagName)))
+				value.Set(reflect.ValueOf(config.GetDuration(flagName)))
 			} else {
-				value.SetInt(int64(viper.GetInt(flagName)))
+				value.SetInt(int64(config.GetInt(flagName)))
 			}
 		case reflect.Uint:
-			value.SetUint(uint64(viper.GetUint(flagName)))
+			value.SetUint(uint64(config.GetUint(flagName)))
 		case reflect.Slice:
 			if value.Type().Elem().Kind() == reflect.String {
-				value.Set(reflect.ValueOf(viper.GetStringSlice(flagName)))
+				value.Set(reflect.ValueOf(config.GetStringSlice(flagName)))
 			}
 		}
 	}

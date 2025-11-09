@@ -153,16 +153,9 @@ func setupFlags(cmd *cobra.Command, inputArgs []Argument, flags any, flagSet *pf
 			continue
 		}
 
-		flagName, ok := field.Tag.Lookup("name")
-		if !ok {
-			flagName = strings.ToLower(field.Name)
-		}
-
-		flagUsage, ok := field.Tag.Lookup("usage")
-		if !ok {
-			flagUsage = field.Name
-		}
-		flagShort, _ := field.Tag.Lookup("short")
+		flagName := getFlagName(field)
+		flagUsage := getFlagUsage(field)
+		flagShort := getFlagShort(field)
 
 		actualValue := value.Addr().Interface()
 		if err := setupFlag(flagName, flagShort, normalizeUsage(flagUsage), unwrap(actualValue), flagSet); err != nil {
@@ -226,59 +219,84 @@ func syncViperToFlags(flags any, config *viper.Viper) error {
 		return nil
 	}
 
-	// TODO: loop through all viper keys, and find the matching struct field based on the "name" tag, if present, otherwise,
-	// use the field name in lowercase
+	settings := config.AllSettings()
+	if len(settings) == 0 {
+		return nil
+	}
 
 	fields := reflect.TypeOf(flags).Elem()
 	values := reflect.ValueOf(flags).Elem()
 
 	for i := range fields.NumField() {
 		field := fields.Field(i)
+		if field.Anonymous || !field.IsExported() {
+			// no need to handle embedded structs as all structs will be passed to this function
+			continue
+		}
+
 		value := values.Field(i)
-
-		if !field.IsExported() || !value.CanAddr() || !value.CanSet() {
+		if !value.CanAddr() {
 			continue
 		}
 
-		// Handle embedded structs (like GlobalFlags)
-		if value.Kind() == reflect.Pointer && value.Elem().Kind() == reflect.Struct {
-			if err := syncViperToFlags(value.Interface(), config); err != nil {
-				return err
-			}
-			continue
-		}
-
-		flagName, ok := field.Tag.Lookup("name")
-		if !ok {
-			flagName = strings.ToLower(field.Name)
-		}
-
-		// Only update if Viper has a value for this key
+		flagName := getFlagName(field)
 		if !config.IsSet(flagName) {
 			continue
 		}
 
-		// Sync the value from Viper to the struct field
-		switch value.Kind() {
-		case reflect.String:
-			value.SetString(config.GetString(flagName))
-		case reflect.Bool:
-			value.SetBool(config.GetBool(flagName))
-		case reflect.Int, reflect.Int64:
-			// Handle time.Duration
-			if value.Type() == reflect.TypeOf(time.Duration(0)) {
-				value.Set(reflect.ValueOf(config.GetDuration(flagName)))
-			} else {
-				value.SetInt(int64(config.GetInt(flagName)))
-			}
-		case reflect.Uint:
-			value.SetUint(uint64(config.GetUint(flagName)))
-		case reflect.Slice:
-			if value.Type().Elem().Kind() == reflect.String {
-				value.Set(reflect.ValueOf(config.GetStringSlice(flagName)))
-			}
-		}
+		setValue(value, flagName, config)
 	}
 
 	return nil
+}
+
+// setValue sets a value from Viper into the provided reflect.Value based on its kind.
+func setValue(v reflect.Value, configKey string, config *viper.Viper) {
+	switch v.Kind() {
+	case reflect.String:
+		v.SetString(config.GetString(configKey))
+	case reflect.Slice:
+		if v.Type().Elem().Kind() == reflect.String {
+			v.Set(reflect.ValueOf(config.GetStringSlice(configKey)))
+		}
+	case reflect.Bool:
+		v.SetBool(config.GetBool(configKey))
+	case reflect.Int, reflect.Int64:
+		if v.Type() == reflect.TypeOf(time.Duration(0)) {
+			v.Set(reflect.ValueOf(config.GetDuration(configKey)))
+		} else {
+			v.SetInt(int64(config.GetInt(configKey)))
+		}
+	case reflect.Uint:
+		v.SetUint(uint64(config.GetUint(configKey)))
+	default:
+		return
+	}
+}
+
+// getFlagName retrieves the flag name from the struct field tag or defaults to the lowercased field name.
+func getFlagName(field reflect.StructField) string {
+	n, ok := field.Tag.Lookup("name")
+	if !ok {
+		n = strings.ToLower(field.Name)
+	}
+	return n
+}
+
+// getFlagUsage retrieves the flag usage from the struct field tag or defaults to the field name.
+func getFlagUsage(field reflect.StructField) string {
+	u, ok := field.Tag.Lookup("usage")
+	if !ok {
+		u = field.Name
+	}
+	return u
+}
+
+// getFlagShort retrieves the flag short name from the struct field tag or returns an empty string if not set.
+func getFlagShort(field reflect.StructField) string {
+	s, ok := field.Tag.Lookup("short")
+	if !ok {
+		return ""
+	}
+	return s
 }

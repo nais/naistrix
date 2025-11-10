@@ -44,7 +44,7 @@ func configSet(config *viper.Viper) *Command {
 		Title:       "Set a configuration value",
 		Description: "Set a configuration value in the configuration file. This value will be used as default for relevant flags throughout the application.",
 		AutoCompleteFunc: func(_ context.Context, args *Arguments, _ string) ([]string, string) {
-			settings, err := getSettingsFromConfigFile(config.ConfigFileUsed())
+			settings, err := getSettingsFromConfigFile(config)
 			if err != nil {
 				return []string{}, ""
 			}
@@ -98,9 +98,9 @@ func configGet(config *viper.Viper) *Command {
 		Title:            "Get one or more configuration values.",
 		Description:      "This command retrieves one or more configuration values from the configuration file.",
 		Args:             []Argument{{Name: "key", Repeatable: true}},
-		AutoCompleteFunc: autoCompleteConfigurationKeys(config.ConfigFileUsed()),
+		AutoCompleteFunc: autoCompleteConfigurationKeys(config),
 		RunFunc: func(_ context.Context, args *Arguments, out *OutputWriter) error {
-			settings, err := getSettingsFromConfigFile(config.ConfigFileUsed())
+			settings, err := getSettingsFromConfigFile(config)
 			if err != nil {
 				return fmt.Errorf("unable to read configuration file: %w", err)
 			}
@@ -125,7 +125,7 @@ func configList(config *viper.Viper) *Command {
 		Name:  "list",
 		Title: "List all configuration values found in the configuration file.",
 		RunFunc: func(_ context.Context, _ *Arguments, out *OutputWriter) error {
-			settings, err := getSettingsFromConfigFile(config.ConfigFileUsed())
+			settings, err := getSettingsFromConfigFile(config)
 			if err != nil {
 				return fmt.Errorf("unable to read configuration file: %w", err)
 			}
@@ -163,9 +163,9 @@ func configUnset(config *viper.Viper) *Command {
 		Title:            "Unset one or more configuration values.",
 		Description:      "This command removes one or more configuration values from the configuration file completely.",
 		Args:             []Argument{{Name: "key", Repeatable: true}},
-		AutoCompleteFunc: autoCompleteConfigurationKeys(config.ConfigFileUsed()),
+		AutoCompleteFunc: autoCompleteConfigurationKeys(config),
 		RunFunc: func(_ context.Context, args *Arguments, out *OutputWriter) error {
-			settings, err := getSettingsFromConfigFile(config.ConfigFileUsed())
+			settings, err := getSettingsFromConfigFile(config)
 			if err != nil {
 				return fmt.Errorf("unable to read configuration file: %w", err)
 			}
@@ -209,13 +209,13 @@ func ensureDirectoryExists(dir string) error {
 }
 
 // getSettingsFromConfigFile returns settings from a Viper configuration file as a map.
-func getSettingsFromConfigFile(path string) (map[string]any, error) {
+func getSettingsFromConfigFile(config *viper.Viper) (map[string]any, error) {
 	v := viper.New()
-	v.SetConfigFile(path)
+	v.SetConfigFile(config.ConfigFileUsed())
 	if err := v.ReadInConfig(); errors.Is(err, os.ErrNotExist) {
 		return make(map[string]any), nil
 	} else if err != nil {
-		return nil, fmt.Errorf("unable to read configuration file %q: %w", path, err)
+		return nil, fmt.Errorf("unable to read configuration file %q: %w", config.ConfigFileUsed(), err)
 	}
 
 	return v.AllSettings(), nil
@@ -223,13 +223,13 @@ func getSettingsFromConfigFile(path string) (map[string]any, error) {
 
 // autoCompleteConfigurationKeys returns an AutoCompleteFunc that suggests configuration keys from the given config
 // file.
-func autoCompleteConfigurationKeys(configFile string) AutoCompleteFunc {
-	settings, err := getSettingsFromConfigFile(configFile)
-	if err != nil {
-		return nil
-	}
-
+func autoCompleteConfigurationKeys(config *viper.Viper) AutoCompleteFunc {
 	return func(_ context.Context, args *Arguments, _ string) ([]string, string) {
+		settings, err := getSettingsFromConfigFile(config)
+		if err != nil {
+			return []string{}, ""
+		}
+
 		var inArgs []string
 		if args.Len() > 0 {
 			inArgs = args.GetRepeatable("key")

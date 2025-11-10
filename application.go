@@ -37,6 +37,9 @@ type Application struct {
 	// flags are global flags that should be available for all subcommands of the application.
 	flags *GlobalFlags
 
+	// additionalGlobalFlags are additional global flags that should be available for all subcommands of the application.
+	additionalGlobalFlags []any
+
 	// commands are the executable commands of the application. To be able to run the application, at least one command
 	// must be defined.
 	commands []*Command
@@ -152,6 +155,12 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 				return fmt.Errorf("failed to sync sticky flags: %w", err)
 			}
 
+			for _, f := range app.additionalGlobalFlags {
+				if err := syncViperToFlags(f, app.config); err != nil {
+					return fmt.Errorf("failed to sync additional sticky flags: %w", err)
+				}
+			}
+
 			if app.flags.NoColors {
 				pterm.DisableStyling()
 			}
@@ -213,6 +222,8 @@ func (a *Application) AddGlobalFlags(flags any) error {
 	if err := setupFlags(a.rootCommand, nil, flags, a.rootCommand.PersistentFlags()); err != nil {
 		return fmt.Errorf("failed to setup global flags: %w", err)
 	}
+
+	a.additionalGlobalFlags = append(a.additionalGlobalFlags, flags)
 
 	return nil
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -164,16 +165,31 @@ func setupFlags(cmd *cobra.Command, inputArgs []Argument, flags any, flagSet *pf
 
 		switch v := actualValue.(type) {
 		case FlagAutoCompleter:
-			_ = cmd.RegisterFlagCompletionFunc(
+			err := cmd.RegisterFlagCompletionFunc(
 				flagName,
 				func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+					// get existing flag values. The call might fail if the flag is not a []string, but in that case we
+					// will just get an empty slice which is fine.
+					existing, _ := cmd.Flags().GetStringSlice(flagName)
 					completions, activeHelp := v.AutoComplete(cmd.Context(), newArguments(inputArgs, args), toComplete, flags)
-					if activeHelp != "" {
-						completions = cobra.AppendActiveHelp(completions, activeHelp)
+
+					filtered := make([]string, 0)
+					for _, comp := range completions {
+						if !slices.Contains(existing, comp) {
+							filtered = append(filtered, comp)
+						}
 					}
-					return completions, cobra.ShellCompDirectiveNoFileComp
+
+					if len(filtered) > 0 && activeHelp != "" {
+						filtered = cobra.AppendActiveHelp(filtered, activeHelp)
+					}
+
+					return filtered, cobra.ShellCompDirectiveNoFileComp
 				},
 			)
+			if err != nil {
+				return fmt.Errorf("failed to register auto-completion for flag %q: %w", flagName, err)
+			}
 		case FileAutoCompleter:
 			_ = cmd.RegisterFlagCompletionFunc(
 				flagName,
@@ -185,12 +201,35 @@ func setupFlags(cmd *cobra.Command, inputArgs []Argument, flags any, flagSet *pf
 	return nil
 }
 
+// unwrap checks certain types and converts them to their underlying types for flag setup.
+//
+// Examples:
+//
+// *string => *string
+// *[]string => *[]string
+// *MyStringType => *string
+// *[]MyStringType => *[]string
 func unwrap(value any) any {
 	v := reflect.ValueOf(value)
+
 	switch v.Elem().Kind() {
 	case reflect.String:
 		var t *string
 		return v.Convert(reflect.TypeOf(t)).Interface()
+	case reflect.Slice:
+		switch v.Elem().Type().Elem().Kind() {
+		case reflect.String:
+			sliceType := reflect.TypeOf([]string{})
+			out := reflect.MakeSlice(sliceType, v.Elem().Len(), v.Elem().Len())
+			for i := 0; i < v.Elem().Len(); i++ {
+				out.Index(i).Set(v.Elem().Index(i).Convert(reflect.TypeOf("")))
+			}
+			ptr := reflect.New(sliceType)
+			ptr.Elem().Set(out)
+			return ptr.Interface()
+		default:
+			return value
+		}
 	default:
 		return value
 	}
@@ -257,7 +296,13 @@ func setValue(v reflect.Value, configKey string, config *viper.Viper) {
 		v.SetString(config.GetString(configKey))
 	case reflect.Slice:
 		if v.Type().Elem().Kind() == reflect.String {
-			v.Set(reflect.ValueOf(config.GetStringSlice(configKey)))
+			stringSlice := config.GetStringSlice(configKey)
+			newSlice := reflect.MakeSlice(v.Type(), len(stringSlice), len(stringSlice))
+			for i, s := range stringSlice {
+				newSlice.Index(i).Set(reflect.ValueOf(s).Convert(v.Type().Elem()))
+			}
+
+			v.Set(newSlice)
 		}
 	case reflect.Bool:
 		v.SetBool(config.GetBool(configKey))

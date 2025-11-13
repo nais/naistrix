@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/nais/naistrix"
 )
@@ -12,9 +13,15 @@ type GlobalFlags struct {
 	Quiet bool `name:"quiet" short:"q" usage:"Suppress all output."`
 }
 
+type Resources []string
+
+func (*Resources) AutoComplete(context.Context, *naistrix.Arguments, string, any) ([]string, string) {
+	return []string{"postgres", "bucket", "opensearch", "valkey"}, "Select a resource to add to the application"
+}
+
 type CreateFlags struct {
 	*GlobalFlags
-	Resources []string `name:"resources" short:"r" usage:"Resource(s) to add to the application. Can be repeated."`
+	Resources Resources `name:"resources" short:"r" usage:"Resource(s) to add to the application. Can be repeated."`
 }
 
 type DeleteFlags struct {
@@ -34,6 +41,7 @@ func createCommand(globalFlags *GlobalFlags) *naistrix.Command {
 			// the user
 
 			out.Println("Created application:", args.Get("app_name"))
+			out.Println("Added resources:", strings.Join(flags.Resources, ", "))
 			return nil
 		},
 	}

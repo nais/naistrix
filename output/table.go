@@ -6,6 +6,7 @@ import (
 	"io"
 	"reflect"
 
+	"github.com/nais/naistrix/internal/color"
 	"github.com/pterm/pterm"
 )
 
@@ -86,7 +87,12 @@ func (t *Table) convert(v any) (pterm.TableData, error) {
 
 	if elem := vt.Elem(); elem.Kind() == reflect.Slice && elem.Elem().Kind() == reflect.String {
 		if d, ok := v.([][]string); ok {
-			return d, nil
+			ret := make(pterm.TableData, len(d))
+			ret[0] = d[0]
+			for i := 1; i < len(d); i++ {
+				ret[i] = color.ColorizeStrings(d[i])
+			}
+			return ret, nil
 		}
 
 		return nil, fmt.Errorf("unable to convert data")
@@ -190,5 +196,5 @@ func getStringValue(v reflect.Value) string {
 		return ""
 	}
 
-	return fmt.Sprint(v.Interface())
+	return color.Colorize(fmt.Sprint(v.Interface()))
 }

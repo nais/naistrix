@@ -3,14 +3,11 @@ package naistrix
 import (
 	"fmt"
 	"io"
-	"regexp"
 
+	"github.com/nais/naistrix/internal/color"
 	"github.com/nais/naistrix/output"
 	"github.com/pterm/pterm"
 )
-
-// coloredText is a regular expression that matches custom tags for info, warn, and error formatting inline in a string.
-var coloredText = regexp.MustCompile(`<(info|warn|error)>(.*?)</(info|warn|error)>`)
 
 // OutputWriter is used to write output to the user, with support for different verbosity levels and output formats.
 type OutputWriter struct {
@@ -84,12 +81,12 @@ func (w *OutputWriter) Errorf(format string, a ...any) {
 // Println writes a line of output to the destination, appending a newline at the end. Spaces are added between
 // arguments. This outputs in all verbosity levels.
 func (w *OutputWriter) Println(a ...any) {
-	pterm.Println(colorizeMultiple(a)...)
+	pterm.Println(color.ColorizeAny(a)...)
 }
 
 // Printf writes formatted output to the destination. This outputs in all verbosity levels.
 func (w *OutputWriter) Printf(format string, a ...any) {
-	pterm.Printf(colorize(format), a...)
+	pterm.Printf(color.Colorize(format), a...)
 }
 
 // Verboseln writes a line of verbose output to the destination, appending a newline at the end. Spaces are added
@@ -99,7 +96,7 @@ func (w *OutputWriter) Verboseln(a ...any) {
 		return
 	}
 
-	_, _ = fmt.Fprintln(w.writer, colorizeMultiple(a)...)
+	_, _ = fmt.Fprintln(w.writer, color.ColorizeAny(a)...)
 }
 
 // Verbosef writes formatted verbose output to the destination. This outputs in OutputVerbosityLevelVerbose and higher
@@ -109,7 +106,7 @@ func (w *OutputWriter) Verbosef(format string, a ...any) {
 		return
 	}
 
-	_, _ = fmt.Fprintf(w.writer, colorize(format), a...)
+	_, _ = fmt.Fprintf(w.writer, color.Colorize(format), a...)
 }
 
 // Debugln writes a line of debug output to the destination, appending a newline at the end. Spaces are added between
@@ -121,7 +118,7 @@ func (w *OutputWriter) Debugln(a ...any) {
 
 	pterm.EnableDebugMessages()
 	defer pterm.DisableDebugMessages()
-	pterm.Debug.WithWriter(w.writer).Println(colorizeMultiple(a)...)
+	pterm.Debug.WithWriter(w.writer).Println(color.ColorizeAny(a)...)
 }
 
 // Debugf writes formatted debug output to the destination. This outputs in OutputVerbosityLevelDebug and higher levels.
@@ -132,7 +129,7 @@ func (w *OutputWriter) Debugf(format string, a ...any) {
 
 	pterm.EnableDebugMessages()
 	defer pterm.DisableDebugMessages()
-	pterm.Debug.WithWriter(w.writer).Printf(colorize(format), a...)
+	pterm.Debug.WithWriter(w.writer).Printf(color.Colorize(format), a...)
 }
 
 // Traceln writes a line of trace output to the destination, appending a newline at the end. Spaces are added between
@@ -146,7 +143,7 @@ func (w *OutputWriter) Traceln(a ...any) {
 	defer pterm.DisableDebugMessages()
 	prefix := pterm.Debug.Prefix
 	prefix.Text = " TRACE "
-	pterm.Debug.WithWriter(w.writer).WithPrefix(prefix).Println(colorizeMultiple(a)...)
+	pterm.Debug.WithWriter(w.writer).WithPrefix(prefix).Println(color.ColorizeAny(a)...)
 }
 
 // Tracef writes formatted trace output to the destination. This outputs in OutputVerbosityLevelTrace level.
@@ -159,40 +156,5 @@ func (w *OutputWriter) Tracef(format string, a ...any) {
 	defer pterm.DisableDebugMessages()
 	prefix := pterm.Debug.Prefix
 	prefix.Text = " TRACE "
-	pterm.Debug.WithWriter(w.writer).WithPrefix(prefix).Printf(colorize(format), a...)
-}
-
-// colorizeMultiple applies colorization to a slice of values. Each value will be converted to a string.
-func colorizeMultiple(s []any) []any {
-	ret := make([]any, len(s))
-	for i, str := range s {
-		ret[i] = colorize(fmt.Sprint(str))
-	}
-	return ret
-}
-
-// colorize applies colorization to a string based on custom tags.
-func colorize(s string) string {
-	return coloredText.ReplaceAllStringFunc(s, func(s string) string {
-		m := coloredText.FindStringSubmatch(s)
-		openTag, content, closeTag := m[1], m[2], m[3]
-
-		if openTag != closeTag {
-			return s
-		}
-
-		var printer func(...any) string
-		switch openTag {
-		case "info":
-			printer = pterm.FgLightCyan.Sprint
-		case "warn":
-			printer = pterm.FgYellow.Sprint
-		case "error":
-			printer = pterm.FgLightRed.Sprint
-		default:
-			return s
-		}
-
-		return printer(content)
-	})
+	pterm.Debug.WithWriter(w.writer).WithPrefix(prefix).Printf(color.Colorize(format), a...)
 }

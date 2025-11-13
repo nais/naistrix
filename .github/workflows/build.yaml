@@ -30,6 +30,8 @@ jobs:
       - uses: jdx/mise-action@v3
       - id: release-info
         run: mise run ci:release-info
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   checks:
     strategy:

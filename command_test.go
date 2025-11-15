@@ -54,7 +54,7 @@ func TestCommandValidation(t *testing.T) {
 				Name:  "test",
 				Title: "Some title",
 			},
-			errorContains: "either RunFunc or SubCommands must be set",
+			errorContains: "either RunFunc, SubCommands or Deprecated must be set",
 		},
 		{
 			name: "has both RunFunc and SubCommands",
@@ -70,7 +70,7 @@ func TestCommandValidation(t *testing.T) {
 					},
 				},
 			},
-			errorContains: "either RunFunc or SubCommands must be set",
+			errorContains: "cannot have both RunFunc and SubCommands",
 		},
 	}
 	for _, tt := range tests {

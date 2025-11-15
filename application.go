@@ -243,12 +243,27 @@ func (a *Application) Run(opts ...RunOptionFunc) error {
 		ro.args = os.Args[1:]
 	}
 
-	a.rootCommand.SetArgs(ro.args)
-
 	var err error
-	a.executedCommand, err = a.rootCommand.ExecuteContextC(ro.ctx)
+	for {
+		a.rootCommand.SetArgs(ro.args)
+		a.executedCommand, err = a.rootCommand.ExecuteContextC(ro.ctx)
+		if err == nil {
+			return nil
+		}
 
-	return err
+		var deprecatedErr *DeprecatedCommandError
+		if errors.As(err, &deprecatedErr) {
+			if len(deprecatedErr.Replacement) > 0 && deprecatedErr.ExecuteReplacement {
+				ro.args = deprecatedErr.Replacement
+				continue
+			}
+
+			// prepend the application name to the replacement command for the error message returned to the user
+			deprecatedErr.Replacement = append([]string{a.name}, deprecatedErr.Replacement...)
+		}
+
+		return err
+	}
 }
 
 // ExecutedCommand returns the name of the command that was executed, along with the parent command names and the

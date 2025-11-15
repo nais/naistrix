@@ -40,6 +40,14 @@ type Command struct {
 	// with the Title field.
 	Description string
 
+	// Deprecated marks the command as deprecated. When set, the commands RunFunc is never executed, instead a warning
+	// is shown to the user, and if a replacement command is specified, the user is prompted to execute the replacement
+	// command instead.
+	//
+	// Commands with one or more SubCommands can not be marked as deprecated. Instead, each subcommand must be marked as
+	// deprecated individually.
+	Deprecated *DeprecatedCommand
+
 	// RunFunc will be executed when the command is run. The RunFunc and SubCommands fields are mutually exclusive.
 	RunFunc RunFunc
 
@@ -72,6 +80,7 @@ type Command struct {
 	// Examples are examples of how to use the command. The examples are shown in the help output in the added order.
 	Examples []Example
 
+	// cobraCmd is the internal cobra.Command for the Command.
 	cobraCmd *cobra.Command
 }
 
@@ -181,28 +190,30 @@ func (c *Command) validateArgs() error {
 // cobraShort generates the short description for the cobra.Command.
 func (c *Command) cobraShort() string {
 	title := strings.TrimSpace(c.Title)
-	if !strings.HasSuffix(title, ".") {
-		title = title + "."
+	if c.Deprecated != nil {
+		title = "(DEPRECATED) " + title
 	}
 
 	return title
 }
 
 // cobraLong generates the long description for the cobra.Command.
-func (c *Command) cobraLong(short string) string {
+func (c *Command) cobraLong() string {
 	description := strings.TrimSpace(c.Description)
-	if description == "" {
-		return short
+
+	if c.Deprecated != nil {
+		description = strings.TrimSpace("This command is deprecated and will be removed in a future release\n\n" + description)
 	}
 
-	return strings.TrimRight(short, ".") + "\n\n" + description
+	return strings.TrimSpace(c.cobraShort() + "\n\n" + description)
 }
 
 // cobraRun wraps the RunFunc of the command into a function that can be used by the underlying cobra.Command.
 func (c *Command) cobraRun(out *OutputWriter) func(*cobra.Command, []string) error {
-	if c.RunFunc == nil {
+	if len(c.SubCommands) > 0 {
 		return func(cmd *cobra.Command, args []string) error {
 			if err := cobra.NoArgs(cmd, args); err != nil {
+				// user tried to run a subcommand that does not exist.
 				subCommands := "Available commands:\n"
 				for _, s := range cmd.Commands() {
 					subCommands = subCommands + "  " + s.Name() + "\n"
@@ -210,23 +221,56 @@ func (c *Command) cobraRun(out *OutputWriter) func(*cobra.Command, []string) err
 
 				return fmt.Errorf(
 					strings.TrimSpace(heredoc.Doc(`
-						%w
+						%[1]w
 
 						Usage:
-						  %s <command> [flags]
+						  %[2]s <command> [flags]
 
-						%s
+						%[3]s
 
-						Use "%s -h" for more information.
+						Use "%[2]s -h" for more information.
 					`)),
 					err,
 					cmd.CommandPath(),
 					strings.TrimSpace(subCommands),
-					cmd.CommandPath(),
 				)
 			}
 
 			return cmd.Help()
+		}
+	}
+
+	if c.Deprecated != nil {
+		c.RunFunc = func(ctx context.Context, args *Arguments, out *OutputWriter) error {
+			warning := fmt.Sprintf("The command %q is deprecated and will be removed in a future release\n", c.Name)
+
+			var replacement []string
+			if c.Deprecated.replacementFunc != nil {
+				replacement = c.Deprecated.replacementFunc(ctx, args)
+			}
+
+			if len(replacement) > 0 {
+				warning += fmt.Sprintf("Please use the following command as a replacement:\n  %s\n",
+					strings.Join(replacement, " "))
+			} else {
+				warning += "Unfortunately, there is no replacement command available"
+			}
+
+			out.Warnln(warning)
+
+			if len(replacement) == 0 {
+				return ErrDeprecatedCommandWithoutReplacement
+			}
+
+			executeReplacement, err := out.Confirm("Do you want to proceed with the replacement command?")
+			if err != nil {
+				return err
+			}
+
+			return &DeprecatedCommandError{
+				Replacement:        replacement,
+				ExecuteReplacement: executeReplacement,
+			}
 		}
 	}
 
@@ -251,8 +295,16 @@ func (c *Command) validate() error {
 		return fmt.Errorf("title for command %q contains newline", c.Name)
 	}
 
-	if (c.RunFunc == nil && len(c.SubCommands) == 0) || (c.RunFunc != nil && len(c.SubCommands) > 0) {
-		return fmt.Errorf("either RunFunc or SubCommands must be set for command: %v", c.Name)
+	if len(c.SubCommands) > 0 && c.Deprecated != nil {
+		return fmt.Errorf("parent command %q can not be marked as deprecated", c.Name)
+	}
+
+	if c.RunFunc != nil && len(c.SubCommands) > 0 {
+		return fmt.Errorf("command %q cannot have both RunFunc and SubCommands", c.Name)
+	}
+
+	if c.RunFunc == nil && len(c.SubCommands) == 0 && c.Deprecated == nil {
+		return fmt.Errorf("either RunFunc, SubCommands or Deprecated must be set for command: %v", c.Name)
 	}
 
 	return c.validateArgs()
@@ -265,7 +317,6 @@ func (c *Command) init(cmd string, out *OutputWriter, usageTemplate string, conf
 	}
 
 	cmd = cmd + " " + c.Name
-	short := c.cobraShort()
 
 	example, err := c.cobraExample(cmd)
 	if err != nil {
@@ -273,11 +324,12 @@ func (c *Command) init(cmd string, out *OutputWriter, usageTemplate string, conf
 	}
 
 	c.cobraCmd = &cobra.Command{
+		Hidden:            c.Deprecated != nil,
 		Example:           example,
 		Aliases:           c.Aliases,
 		Use:               c.cobraUse(),
-		Short:             short,
-		Long:              c.cobraLong(short),
+		Short:             c.cobraShort(),
+		Long:              c.cobraLong(),
 		GroupID:           c.Group,
 		RunE:              c.cobraRun(out),
 		ValidArgsFunction: c.autocomplete(),

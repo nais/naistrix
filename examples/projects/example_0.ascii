@@ -1,0 +1,11 @@
+> projects --config config.yaml project ls -v
+Using the demo profile
+Using team apps
+checkout
+catalog
+> projects --config config.yaml list --team platform --offline -v
+Using team platform
+gateway
+metrics
+>
+────────────────────────────────────────────────────────────────────────────────

@@ -198,7 +198,7 @@ auth := &naistrix.Command{
 }
 ```
 
-A runnable demonstration is available in [examples/hooks](../examples/hooks/).
+A runnable demonstration is available in [examples/projects](../examples/projects/).
 
 Alternatively, register authentication only on the command subtree that needs
 it. In this example, `auth` is not also registered application-wide:

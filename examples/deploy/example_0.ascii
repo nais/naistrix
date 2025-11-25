@@ -1,0 +1,13 @@
+> deploy plan
+Service name: gateway
+Target environment:
+  ❯ staging
+To run this non-interactively next time:
+
+  deploy plan gateway --environment staging
+
+Plan: release gateway to staging
+> deploy plan gateway --environment staging
+Plan: release gateway to staging
+>
+────────────────────────────────────────────────────────────────────────────────

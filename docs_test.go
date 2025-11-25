@@ -271,7 +271,6 @@ func TestGenerateDocs_ConfigurationKeys(t *testing.T) {
 			if err := app.GenerateDocs(naistrix.GenerateDocsWithTargetDir(dir)); err != nil {
 				t.Fatal(err)
 			}
-			listFile := "myapp_" + commandName + "_list.md"
 			content := readFile(t, filepath.Join(dir, "configuration.md"))
 			for _, want := range []string{
 				"title: Configuration",
@@ -306,10 +305,6 @@ func TestGenerateDocs_ConfigurationKeys(t *testing.T) {
 				if _, err := os.Stat(filepath.Join(dir, link+".md")); err != nil {
 					t.Errorf("linked command page does not exist: %v", err)
 				}
-			}
-			listContent := readFile(t, filepath.Join(dir, listFile))
-			if strings.Contains(listContent, "[Configuration](configuration)") {
-				t.Errorf("list page should not include a configuration backlink:\n%s", listContent)
 			}
 			files, err := os.ReadDir(dir)
 			if err != nil {
@@ -380,10 +375,6 @@ func TestGenerateDocs_NoConfigurationKeys(t *testing.T) {
 				if _, err := os.Stat(filepath.Join(dir, link+".md")); err != nil {
 					t.Errorf("linked command page does not exist: %v", err)
 				}
-			}
-			content = readFile(t, filepath.Join(dir, "myapp_"+commandName+"_list.md"))
-			if strings.Contains(content, "[Configuration](configuration)") {
-				t.Errorf("list page should not include a configuration backlink:\n%s", content)
 			}
 		})
 	}

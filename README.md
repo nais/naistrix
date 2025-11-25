@@ -14,9 +14,9 @@ go get github.com/nais/naistrix@latest
 
 ## Usage
 
-Please have a look at the [examples](examples/) directory for usage examples.
-See the [command wizard example](examples/wizard/) for guided input collection
-and previews of equivalent CLI invocations.
+Start with the [examples](examples/) quickstart, or explore the three complete
+example applications. See [Deploy](examples/deploy/) for guided input collection
+and command replay.
 
 ### Application lifecycle
 
@@ -45,6 +45,10 @@ Naistrix uses [mise](https://mise.jdx.dev/) to handle dependencies and tasks. Af
 ```bash
 mise install
 ```
+
+The tool lockfile is [`mise/mise.lock`](mise/mise.lock). After changing tool
+versions, run `mise lock` and include the updated lockfile in the change. Use
+`mise lock --check` to verify it.
 
 ### Make changes
 

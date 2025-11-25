@@ -4,16 +4,17 @@
 Naistrix is an opinionated Go library for building CLI applications, wrapping [Cobra](https://github.com/spf13/cobra) and providing conventions for commands, flags, arguments, output, and developer workflow. This document summarizes essential project knowledge for AI coding agents to be productive in this codebase.
 
 ## Architecture & Key Components
-- **Core Types**: The main abstractions are `Application`, `Command`, `Argument`, `OutputWriter`, and flag structs. See `application.go`, `command.go`, `arguments.go`, and `output/`.
+- **Core Types**: The main abstractions are `Application`, `Command`, `Argument`, `OutputWriter`, and flag structs. See `application.go`, `command.go`, `argument.go`, and `output/`.
 - **Command Structure**: Commands are defined via the `Command` struct, supporting subcommands, aliases, top-level aliases, groups, arguments, flags, sticky flags, and deprecation. See `command.go` and `examples/`.
-- **Flags & Arguments**: Flags are defined as struct fields (with tags for name, short, usage, etc.), and arguments are positional, defined in the `Args` field of `Command`. Repeatable arguments must be last. See `examples/flags/README.md` and `examples/arguments/README.md`.
+- **Flags & Arguments**: Flags are defined as struct fields (with tags for name, short, usage, etc.), and arguments are positional, defined in the `Args` field of `Command`. Repeatable arguments must be last. See `examples/deploy/README.md`.
 - **Output**: Output is handled via the `OutputWriter` abstraction, supporting verbosity, pretty output, tables, JSON, and YAML. See `output/` and `examples/`.
-- **Deprecation**: Commands can be deprecated with static or dynamic replacements, or without replacement. See `examples/deprecated/README.md`.
+- **Deprecation**: Commands can be deprecated with static or dynamic replacements, or without replacement. See `examples/projects/README.md`.
 - **Color & Styling**: Use the `internal/color` package for colorized output with custom tags (e.g., `<info>`, `<warn>`, `<error>`).
 
 ## Developer Workflow
 - **Branches**: Make changes and commits on a descriptive feature, fix, or docs branch, not directly on `main` or another default/protected branch. Check the current branch before committing; create a branch first if necessary. Keep using an appropriate existing task branch. Only commit directly to a default/protected branch if the user explicitly requests it.
 - **Dependency & Task Management**: Uses [mise](https://mise.jdx.dev/) for tool and task management. See `mise/config.toml` and `mise/tasks/`.
+- **Tool Lockfile**: After changing a mise tool version, regenerate `mise/mise.lock` with `mise lock` and verify it with `mise lock --check`.
 - **Common Tasks**:
   - `mise run build`: Build all Go code (`mise/tasks/build.sh`)
   - `mise run fmt`: Format code with gofumpt (`mise/tasks/fmt.sh`)
@@ -24,7 +25,11 @@ Naistrix is an opinionated Go library for building CLI applications, wrapping [C
   the Conventional Commit prefix. Wrap body and footer lines at 72 characters,
   including `BREAKING CHANGE` descriptions. Separate the subject, body, and
   footers with blank lines. Check these limits before committing.
-- **Examples**: The `examples/` directory contains self-contained usage examples for all major features (flags, arguments, aliases, output, deprecation, etc.). When adding new features, include an example here.
+
+## Examples
+- Prefer extending one of the self-contained applications in `examples/` when demonstrating a feature. Use `projects` for command structure, configuration, and lifecycle; `deploy` for input, completion, and validation; and `inventory` for output and errors. Add a new application only when it has a distinct workflow that doesn't fit an existing one.
+- Use local fixtures so the examples run from the repository root without credentials or network access. Each README should explain what the application does, show a runnable workflow under **Try it**, and point to the relevant functions under **In the code**.
+- Include a VHS preview in each application's README. Put the visible steps in the application's `preview.tape`; the generator discovers it automatically. After changing a recorded workflow, run `mise run examples:generate` and include both the GIF and the adjacent `.ascii` snapshot.
 
 ## Project Conventions & Patterns
 - **No Spaces in Command Names**: Command names must not contain spaces. Use hyphens for multi-word commands (e.g., `my-command`).

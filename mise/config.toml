@@ -2,6 +2,10 @@
 git-cliff = "2.14.2"
 go = "1.27.4"
 golangci-lint = "2.15.0"
+vhs = "0.12.1"
+"conda:ffmpeg" = "9.1.0"
+"conda:ttyd" = "1.7.7"
 
 [settings]
+lockfile = true
 pin = true

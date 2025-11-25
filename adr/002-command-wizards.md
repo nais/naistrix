@@ -26,7 +26,7 @@ type WizardFunc func(ctx context.Context, out *OutputWriter) ([]string, error)
 
 The wizard reads and updates the command's flag struct and returns positional
 arguments in declaration order. It collects input; `RunFunc` still performs the
-operation. The [wizard example](../examples/wizard/) shows how the two callbacks
+operation. The [deploy example](../examples/deploy/) shows how the two callbacks
 share the flag struct. Wizards are not available on parent or deprecated
 commands, and wizard options require a wizard callback.
 

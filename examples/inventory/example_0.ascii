@@ -1,0 +1,9 @@
+> inventory list
+Name    │ Team     │ Documentation
+----------------------------------
+gateway │ platform │ Gateway docs
+catalog │ apps     │ Catalog docs
+> inventory show unknown --error-format json
+{"code":"service_not_found","message":"Service \"unknown\" does not exist."}
+>
+────────────────────────────────────────────────────────────────────────────────

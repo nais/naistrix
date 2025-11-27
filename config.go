@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -12,7 +13,6 @@ import (
 
 	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/spf13/viper"
-	"golang.org/x/exp/maps"
 )
 
 // configCommand creates the built-in config command for managing configuration.
@@ -49,7 +49,7 @@ func configSet(config *viper.Viper) *Command {
 				return []string{}, ""
 			}
 
-			return maps.Keys(settings), "Choose an existing key or create a new one"
+			return slices.Collect(maps.Keys(settings)), "Choose an existing key or create a new one"
 		},
 		RunFunc: func(_ context.Context, args *Arguments, out *OutputWriter) error {
 			configFilePath := config.ConfigFileUsed()

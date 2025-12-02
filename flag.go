@@ -53,6 +53,9 @@ type Count int
 
 // FlagAutoCompleter is an interface that can be implemented by flag values to provide auto-completion functionality.
 type FlagAutoCompleter interface {
+	// AutoComplete is called to provide auto-completion suggestions for the flag. If there are no suggestions, an empty
+	// slice should be returned as well as an empty string as active help. If an error occurs during auto-completion,
+	// you can inform the end-user of this by returning an empty slice and an error message as active help.
 	AutoComplete(ctx context.Context, args *Arguments, toComplete string, flags any) (completions []string, activeHelp string)
 }
 
@@ -180,7 +183,7 @@ func setupFlags(cmd *cobra.Command, inputArgs []Argument, flags any, flagSet *pf
 						}
 					}
 
-					if len(filtered) > 0 && activeHelp != "" {
+					if activeHelp != "" {
 						filtered = cobra.AppendActiveHelp(filtered, activeHelp)
 					}
 

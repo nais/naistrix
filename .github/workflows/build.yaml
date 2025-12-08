@@ -38,6 +38,7 @@ jobs:
 
   checks:
     strategy:
+      fail-fast: false
       matrix:
         mise-task:
           - check:deadcode
@@ -61,11 +62,14 @@ jobs:
 
   branch-protection-checkpoint:
     runs-on: ubuntu-latest
+    if: ${{ always() }}
     needs:
       - checks
     name: Branch protection checkpoint
     steps:
-      - run: echo "All checks passed :rocket:"
+      - if: ${{ needs.checks.result != 'success' }}
+        run: exit 1
+      - run: echo "All checks and builds passed."
 
   tag-and-create-github-release:
     if: github.ref == 'refs/heads/main' && needs.release-info.outputs.changelog != ''

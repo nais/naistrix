@@ -124,7 +124,7 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 		title:   title,
 		version: version,
 		flags: &GlobalFlags{
-			Config: configDir + "/." + name + "/config.yaml",
+			Config: configDir + "/" + name + "/config.yaml",
 		},
 		config: v,
 	}

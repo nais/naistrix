@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/pterm/pterm"
@@ -109,9 +110,16 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 		return nil, nil, fmt.Errorf("application version must not be empty")
 	}
 
-	configDir, err := os.UserConfigDir()
+	userConfigDir, err := os.UserConfigDir()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get user config directory: %w", err)
+	}
+
+	if runtime.GOOS == "darwin" {
+		// Respect XDG spec on macOS as os.UserConfigDir does not.
+		if dir, ok := os.LookupEnv("XDG_CONFIG_HOME"); ok && dir != "" {
+			userConfigDir = dir
+		}
 	}
 
 	v := viper.New()
@@ -124,7 +132,7 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 		title:   title,
 		version: version,
 		flags: &GlobalFlags{
-			Config: configDir + "/" + name + "/config.yaml",
+			Config: userConfigDir + "/" + name + "/config.yaml",
 		},
 		config: v,
 	}

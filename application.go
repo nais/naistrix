@@ -115,12 +115,19 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 		return nil, nil, fmt.Errorf("failed to get user config directory: %w", err)
 	}
 
+	oldUserConfigDir := userConfigDir + "/." + name
+
 	if runtime.GOOS == "darwin" {
 		// Respect XDG spec on macOS as os.UserConfigDir does not.
 		if dir, ok := os.LookupEnv("XDG_CONFIG_HOME"); ok && dir != "" {
 			userConfigDir = dir
 		}
 	}
+
+	userConfigDir += "/" + name
+
+	// Clean up old userConfigDir/.nais, and move files to new userConfigDir
+	cleanUpOldConfig(userConfigDir, oldUserConfigDir, "config.yaml")
 
 	v := viper.New()
 	v.SetEnvPrefix(strings.ToUpper(name))
@@ -132,7 +139,7 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 		title:   title,
 		version: version,
 		flags: &GlobalFlags{
-			Config: userConfigDir + "/" + name + "/config.yaml",
+			Config: userConfigDir + "/config.yaml",
 		},
 		config: v,
 	}
@@ -333,4 +340,28 @@ func resolveHomeDir(path string) (string, error) {
 		path = filepath.Join(u.HomeDir, path[2:])
 	}
 	return path, nil
+}
+
+// cleanUpOldConfig will try to move old config into new folder, and delete the old folder.
+// All errors are ignored, and we return, pretending that everything is good
+func cleanUpOldConfig(configDir, oldDir, oldFile string) {
+	stat, err := os.Stat(oldDir)
+	if err != nil {
+		return
+	}
+
+	if !stat.IsDir() {
+		// If, for some reason, it's not a folder, we return
+		return
+	}
+
+	if err := os.MkdirAll(configDir, 0o750); err != nil {
+		return
+	}
+
+	if err := os.Rename(oldDir+"/"+oldFile, configDir+"/"+oldFile); err != nil {
+		return
+	}
+
+	_ = os.RemoveAll(oldDir)
 }

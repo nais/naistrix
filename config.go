@@ -75,14 +75,12 @@ func configSet(config *viper.Viper) *Command {
 
 			out.Printf("Set <info>%s</info> = <info>%s</info>\n", key, value)
 
-			v := viper.New()
-			v.SetConfigFile(configFilePath)
-			if err := v.ReadInConfig(); err != nil && !errors.Is(err, os.ErrNotExist) {
+			if err := config.ReadInConfig(); err != nil && !errors.Is(err, os.ErrNotExist) {
 				return fmt.Errorf("unable to read configuration file %q: %w", configFilePath, err)
 			}
 
-			v.Set(key, value)
-			if err := v.WriteConfig(); err != nil {
+			config.Set(key, value)
+			if err := config.WriteConfig(); err != nil {
 				return fmt.Errorf("unable to save configuration file: %w", err)
 			}
 
@@ -187,13 +185,11 @@ func configUnset(config *viper.Viper) *Command {
 				return nil
 			}
 
-			v := viper.New()
 			for key, value := range settings {
-				v.Set(key, value)
+				config.Set(key, value)
 			}
 
-			v.SetConfigFile(config.ConfigFileUsed())
-			if err := v.WriteConfig(); err != nil {
+			if err := config.WriteConfig(); err != nil {
 				return fmt.Errorf("unable to save configuration file: %w", err)
 			}
 
@@ -210,15 +206,13 @@ func ensureDirectoryExists(dir string) error {
 
 // getSettingsFromConfigFile returns settings from a Viper configuration file as a map.
 func getSettingsFromConfigFile(config *viper.Viper) (map[string]any, error) {
-	v := viper.New()
-	v.SetConfigFile(config.ConfigFileUsed())
-	if err := v.ReadInConfig(); errors.Is(err, os.ErrNotExist) {
+	if err := config.ReadInConfig(); errors.Is(err, os.ErrNotExist) {
 		return make(map[string]any), nil
 	} else if err != nil {
 		return nil, fmt.Errorf("unable to read configuration file %q: %w", config.ConfigFileUsed(), err)
 	}
 
-	return v.AllSettings(), nil
+	return config.AllSettings(), nil
 }
 
 // autoCompleteConfigurationKeys returns an AutoCompleteFunc that suggests configuration keys from the given config

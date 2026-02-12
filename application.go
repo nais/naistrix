@@ -301,7 +301,7 @@ func (a *Application) initializeConfig(flags *pflag.FlagSet) error {
 
 	a.flags.Config = p
 	a.config.SetConfigFile(a.flags.Config)
-	a.output.Debugf("Initializing configuration using file %q\n", a.flags.Config)
+	a.output.Debugf("Initializing configuration using file %q\n", a.config.ConfigFileUsed())
 
 	if err := a.config.ReadInConfig(); err != nil {
 		if !errors.Is(err, os.ErrNotExist) {

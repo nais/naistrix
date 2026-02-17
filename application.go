@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
-	"runtime"
 	"strings"
 
 	"github.com/pterm/pterm"
@@ -116,14 +115,6 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 	}
 
 	oldUserConfigDir := userConfigDir + "/." + name
-
-	if runtime.GOOS == "darwin" {
-		// Respect XDG spec on macOS as os.UserConfigDir does not.
-		if dir, ok := os.LookupEnv("XDG_CONFIG_HOME"); ok && dir != "" {
-			userConfigDir = dir
-		}
-	}
-
 	userConfigDir += "/" + name
 
 	// Clean up old userConfigDir/.nais, and move files to new userConfigDir

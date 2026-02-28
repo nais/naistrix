@@ -131,16 +131,17 @@ func (c *Command) cobraExample(prefix string) (string, error) {
 
 // cobraUse generates the command usage string for the underlying cobra.Command.
 func (c *Command) cobraUse() string {
-	cmd := c.Name
+	var cmd strings.Builder
+	cmd.WriteString(c.Name)
 	for _, arg := range c.Args {
 		format := " %[1]s" // ARG
 		if arg.Repeatable {
 			format += " [%[1]s...]" // ARG [ARG...]
 		}
-		cmd += fmt.Sprintf(format, strings.ToUpper(arg.Name))
+		_, _ = fmt.Fprintf(&cmd, format, strings.ToUpper(arg.Name))
 	}
 
-	return cmd
+	return cmd.String()
 }
 
 // validateArgs validates the positional arguments for the command, and prepends a ValidateFunc to the command that will

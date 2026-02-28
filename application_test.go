@@ -87,6 +87,86 @@ func TestApplicationValidation(t *testing.T) {
 			t.Fatalf("expected error message to contain %q, got: %q", contains, err.Error())
 		}
 	})
+
+	t.Run("top-level alias for top-level command", func(t *testing.T) {
+		app, _, err := naistrix.NewApplication("app", "some app", "v0.0.0")
+		if err != nil {
+			t.Fatalf("expected no error, got: %v", err)
+		}
+
+		err = app.AddCommand(&naistrix.Command{
+			Name:            "cmd",
+			Title:           "Some command",
+			TopLevelAliases: []string{"alias"},
+			RunFunc:         noop,
+		})
+		if err == nil {
+			t.Fatalf("expected error, got nil")
+		}
+
+		if contains := "not allowed to have top-level aliases"; !strings.Contains(err.Error(), contains) {
+			t.Fatalf("expected error message to contain %q, got: %q", contains, err.Error())
+		}
+	})
+
+	t.Run("duplicate top-level aliases", func(t *testing.T) {
+		app, _, err := naistrix.NewApplication("app", "some app", "v0.0.0")
+		if err != nil {
+			t.Fatalf("expected no error, got: %v", err)
+		}
+
+		err = app.AddCommand(&naistrix.Command{
+			Name:  "auth",
+			Title: "Some auth command",
+			SubCommands: []*naistrix.Command{{
+				Name:            "login",
+				Title:           "Login command",
+				TopLevelAliases: []string{"l"},
+				RunFunc:         noop,
+			}, {
+				Name:            "logout",
+				Title:           "Logout command",
+				TopLevelAliases: []string{"l"},
+				RunFunc:         noop,
+			}},
+		})
+		if err == nil {
+			t.Fatalf("expected error, got nil")
+		}
+
+		if contains := `already registered by "login"`; !strings.Contains(err.Error(), contains) {
+			t.Fatalf("expected error message to contain %q, got: %q", contains, err.Error())
+		}
+	})
+
+	t.Run("duplicate top-level aliases and top-level command", func(t *testing.T) {
+		app, _, err := naistrix.NewApplication("app", "some app", "v0.0.0")
+		if err != nil {
+			t.Fatalf("expected no error, got: %v", err)
+		}
+
+		err = app.AddCommand(&naistrix.Command{
+			Name:  "auth",
+			Title: "Some auth command",
+			SubCommands: []*naistrix.Command{{
+				Name:            "login",
+				Title:           "Login command",
+				TopLevelAliases: []string{"login"},
+				RunFunc:         noop,
+			}},
+		}, &naistrix.Command{
+			Name:    "login",
+			Title:   "Login command",
+			RunFunc: noop,
+		})
+		if err == nil {
+			t.Fatalf("expected error, got nil")
+		}
+
+		if contains := `duplicate commands and/or aliases: "login"`; !strings.Contains(err.Error(), contains) {
+			t.Fatalf("expected error message to contain %q, got: %q", contains, err.Error())
+		}
+	})
 }
 
 func TestExecutedCommands(t *testing.T) {
@@ -358,6 +438,54 @@ func TestApplicationVersion(t *testing.T) {
 	if err := app.Run(naistrix.RunWithArgs([]string{"--version"})); err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	} else if expected := "app version v1.2.3\n"; buf.String() != expected {
+		t.Fatalf("expected version to be %q, got: %q", expected, buf.String())
+	}
+}
+
+func TestExecuteTopLevelAlias(t *testing.T) {
+	buf := &bytes.Buffer{}
+	app, _, err := naistrix.NewApplication(
+		"app",
+		"title",
+		"v1.2.3",
+		naistrix.ApplicationWithWriter(buf),
+	)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	type loginFlags struct {
+		Username string
+	}
+
+	flags := &loginFlags{}
+
+	err = app.AddCommand(&naistrix.Command{
+		Name:  "auth",
+		Title: "Auth command",
+		SubCommands: []*naistrix.Command{
+			{
+				Name:            "login",
+				Title:           "Login command",
+				TopLevelAliases: []string{"login"},
+				Flags:           flags,
+				Args: []naistrix.Argument{
+					{Name: "domain"},
+				},
+				RunFunc: func(_ context.Context, args *naistrix.Arguments, out *naistrix.OutputWriter) error {
+					out.Println("Logged in: domain is", args.Get("domain"), "and username is", flags.Username)
+					return nil
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if err := app.Run(naistrix.RunWithArgs([]string{"login", "example.com", "--username", "user"})); err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	} else if expected := "Logged in: domain is example.com and username is user\n"; buf.String() != expected {
 		t.Fatalf("expected version to be %q, got: %q", expected, buf.String())
 	}
 }

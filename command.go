@@ -29,8 +29,14 @@ type Command struct {
 	// Example: "list" or "create-user".
 	Name string
 
-	// Aliases are alternative names for the command, used to invoke the command in the CLI.
+	// Aliases are alternative names for the command, used to invoke the command with different names on the same
+	// command level.
 	Aliases []string
+
+	// TopLevelAliases are alternative names for the command, used to invoke the command with different names from the
+	// top-level of the CLI. This must only be used for SubCommands, and the top-level aliases must be unique across the
+	// entire CLI.
+	TopLevelAliases []string
 
 	// Title is the title of the command, used as a short description for the help output and as a header for the
 	// optional Description field. This field is required.

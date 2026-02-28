@@ -6,9 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"os/user"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/pterm/pterm"
@@ -58,6 +60,9 @@ type Application struct {
 
 // ApplicationOptionFunc is a function that configures an Application.
 type ApplicationOptionFunc func(*Application)
+
+// topLevelAliases is a map of command names to the command it points to
+type topLevelAliases map[string]*Command
 
 // ApplicationWithWriter sets the output destination for the OutputWriter used in the application. This defaults to
 // os.Stdout.
@@ -207,6 +212,7 @@ func (a *Application) AddCommand(cmd *Command, cmds ...*Command) error {
 	}
 
 	usageTemplate := a.rootCommand.UsageTemplate()
+	aliases := make(topLevelAliases)
 
 	for _, c := range all {
 		if c.Group != "" && !a.rootCommand.ContainsGroup(c.Group) {
@@ -216,14 +222,63 @@ func (a *Application) AddCommand(cmd *Command, cmds ...*Command) error {
 			})
 		}
 
+		if c.TopLevelAliases != nil {
+			return fmt.Errorf("command %q is not allowed to have top-level aliases", c.Name)
+		}
+
 		if err := c.init(a.name, a.output, usageTemplate, a.config); err != nil {
 			return fmt.Errorf("failed to initialize command %q: %w", c.Name, err)
 		}
 
 		a.rootCommand.AddCommand(c.cobraCmd)
+
+		if err := collectTopLevelAliases(c, aliases); err != nil {
+			return fmt.Errorf("failed to collect top-level aliases: %w", err)
+		}
+	}
+
+	if len(aliases) > 0 {
+		if err := a.registerTopLevelAliases(aliases); err != nil {
+			return fmt.Errorf("failed to register top-level aliases: %w", err)
+		}
 	}
 
 	return nil
+}
+
+func (a *Application) registerTopLevelAliases(aliases topLevelAliases) error {
+	namesAndAliases := slices.Collect(maps.Keys(aliases))
+	for _, c := range a.commands {
+		namesAndAliases = append(namesAndAliases, c.Name)
+		namesAndAliases = append(namesAndAliases, c.Aliases...)
+	}
+
+	if d := duplicate(namesAndAliases); d != "" {
+		return fmt.Errorf("the application contains duplicate commands and/or aliases: %q", d)
+	}
+
+	for alias, cmd := range aliases {
+		a.rootCommand.AddCommand(a.createAliasCommand(alias, cmd))
+	}
+
+	return nil
+}
+
+// createAliasCommand creates a cobra command that acts as a top-level alias to another command.
+func (a *Application) createAliasCommand(alias string, c *Command) *cobra.Command {
+	short := fmt.Sprintf("Alias for %s", c.cobraCmd.CommandPath())
+	return &cobra.Command{
+		Use:                alias,
+		Short:              short,
+		Long:               short + "\n\nRefer to the original command for more details.",
+		DisableFlagParsing: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			path := strings.Split(c.cobraCmd.CommandPath(), " ")[1:] // skip the CLI name
+			a.rootCommand.SetArgs(append(path, args...))
+			_, err := a.rootCommand.ExecuteContextC(cmd.Context())
+			return err
+		},
+	}
 }
 
 // AddGlobalFlags adds global flags to the application. These flags will be available for all subcommands of the
@@ -359,4 +414,24 @@ func cleanUpOldConfig(configDir, oldDir, oldFile string) {
 	}
 
 	_ = os.RemoveAll(oldDir)
+}
+
+// collectTopLevelAliases walks through the command and its children and stores top-level aliases in the supplied
+// aliases map. Whenever a duplicate alias is found, an error is returned.
+func collectTopLevelAliases(cmd *Command, aliases topLevelAliases) error {
+	for _, alias := range cmd.TopLevelAliases {
+		if c, exists := aliases[alias]; exists {
+			return fmt.Errorf("command %q wants to register a top-level alias %q that is already registered by %q", cmd.Name, alias, c.Name)
+		}
+
+		aliases[alias] = cmd
+	}
+
+	for _, sub := range cmd.SubCommands {
+		if err := collectTopLevelAliases(sub, aliases); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

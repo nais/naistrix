@@ -217,15 +217,14 @@ func unwrap(value any) any {
 
 	switch v.Elem().Kind() {
 	case reflect.String:
-		var t *string
-		return v.Convert(reflect.TypeOf(t)).Interface()
+		return v.Convert(reflect.TypeFor[*string]()).Interface()
 	case reflect.Slice:
 		switch v.Elem().Type().Elem().Kind() {
 		case reflect.String:
-			sliceType := reflect.TypeOf([]string{})
+			sliceType := reflect.TypeFor[[]string]()
 			out := reflect.MakeSlice(sliceType, v.Elem().Len(), v.Elem().Len())
 			for i := 0; i < v.Elem().Len(); i++ {
-				out.Index(i).Set(v.Elem().Index(i).Convert(reflect.TypeOf("")))
+				out.Index(i).Set(v.Elem().Index(i).Convert(reflect.TypeFor[string]()))
 			}
 			ptr := reflect.New(sliceType)
 			ptr.Elem().Set(out)
@@ -310,7 +309,7 @@ func setValue(v reflect.Value, configKey string, config *viper.Viper) {
 	case reflect.Bool:
 		v.SetBool(config.GetBool(configKey))
 	case reflect.Int, reflect.Int64:
-		if v.Type() == reflect.TypeOf(time.Duration(0)) {
+		if v.Type() == reflect.TypeFor[time.Duration]() {
 			v.Set(reflect.ValueOf(config.GetDuration(configKey)))
 		} else {
 			v.SetInt(int64(config.GetInt(configKey)))

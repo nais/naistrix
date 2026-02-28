@@ -188,7 +188,7 @@ func columnsInRow(row reflect.Value, showHidden bool) []string {
 
 // getStringValue returns the string representation of the provided reflect.Value.
 func getStringValue(v reflect.Value) string {
-	if v.Kind() == reflect.Ptr {
+	if v.Kind() == reflect.Pointer {
 		v = v.Elem()
 	}
 

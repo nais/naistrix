@@ -196,7 +196,16 @@ func (a *Application) AddCommand(cmd *Command, cmds ...*Command) error {
 	all := append([]*Command{cmd}, cmds...)
 	a.commands = append(a.commands, all...)
 
-	commandsAndAliases := make([]string, 0)
+	namesAndAliases := make([]string, 0)
+	for _, c := range a.commands {
+		namesAndAliases = append(namesAndAliases, c.Name)
+		namesAndAliases = append(namesAndAliases, c.Aliases...)
+	}
+
+	if d := duplicate(namesAndAliases); d != "" {
+		return fmt.Errorf("the application contains duplicate commands and/or aliases: %q", d)
+	}
+
 	usageTemplate := a.rootCommand.UsageTemplate()
 
 	for _, c := range all {
@@ -212,13 +221,6 @@ func (a *Application) AddCommand(cmd *Command, cmds ...*Command) error {
 		}
 
 		a.rootCommand.AddCommand(c.cobraCmd)
-
-		commandsAndAliases = append(commandsAndAliases, c.Name)
-		commandsAndAliases = append(commandsAndAliases, c.Aliases...)
-	}
-
-	if d := duplicate(commandsAndAliases); d != "" {
-		return fmt.Errorf("the application contains duplicate commands and/or aliases: %q", d)
 	}
 
 	return nil

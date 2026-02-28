@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	"golang.org/x/term"
 )
 
 // Application represents a CLI application with a set of commands.
@@ -167,7 +168,8 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 				}
 			}
 
-			if app.flags.NoColors {
+			// Disable styling if NoColors flag is set or if stdout is not a TTY
+			if app.flags.NoColors || !term.IsTerminal(int(os.Stdout.Fd())) { // #nosec G115
 				pterm.DisableStyling()
 			}
 

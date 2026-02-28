@@ -219,6 +219,33 @@ func TestDuplicateCommandNamesAndAliases(t *testing.T) {
 		}
 	})
 
+	t.Run("duplicate command names in multiple calls to AddCommand", func(t *testing.T) {
+		app, _, err := naistrix.NewApplication("test", "title", "v0.0.0")
+		if err != nil {
+			t.Fatalf("expected no error, got: %v", err)
+		}
+
+		err = app.AddCommand(&naistrix.Command{
+			Name:    "create",
+			Title:   "Create something",
+			RunFunc: noop,
+		})
+		if err != nil {
+			t.Fatalf("expected no error, got: %v", err)
+		}
+
+		err = app.AddCommand(&naistrix.Command{
+			Name:    "create",
+			Title:   "Create something different",
+			RunFunc: noop,
+		})
+		if err == nil {
+			t.Fatalf("expected error, got nil")
+		} else if contains := "the application contains duplicate commands"; !strings.Contains(err.Error(), contains) {
+			t.Fatalf("expected error message to contain %q, got: %q", contains, err.Error())
+		}
+	})
+
 	t.Run("duplicate alias", func(t *testing.T) {
 		app, _, err := naistrix.NewApplication("test", "title", "v0.0.0")
 		if err != nil {

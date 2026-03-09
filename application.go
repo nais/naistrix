@@ -156,7 +156,6 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 		Short:              app.title,
 		Version:            app.version,
 		SilenceErrors:      true,
-		SilenceUsage:       true,
 		DisableSuggestions: true,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 			if err := app.initializeConfig(cmd.Flags()); err != nil {

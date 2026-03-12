@@ -1,0 +1,52 @@
+---
+title: {{ .Name }}
+has_toc: false
+nav_order: 2
+{{- if .Parent }}
+parent: {{ .Parent }}
+{{- end }}
+{{- if len .SubCommands }}
+has_children: true
+{{- end }}
+---
+## {{ .Name }}
+```
+{{ .Synopsis }}
+```
+{{- if len .Aliases }}
+### Aliases
+{{ range .Aliases }}
+- `{{ . }}`
+{{- end }}
+{{- end }}
+{{ .Description }}
+{{- if len .SubCommands }}
+### Available commands
+{{- range .SubCommands }}
+- [{{ . }}]({{ . | linkify }})
+{{- end }}
+{{- else }}
+{{- if len .LocalFlags }}
+### Options
+{{- range .LocalFlags }}
+{{ if .Short }}`-{{ .Short }}`, {{ end }}`--{{ .Name }}`
+: {{ .Description }}
+{{ end }}
+{{- end }}
+{{- if len .InheritedFlags }}
+### Inherited options
+{{- range .InheritedFlags }}
+{{ if .Short }}`-{{ .Short }}`, {{ end }}`--{{ .Name }}`
+: {{ .Description }}
+{{ end }}
+{{- end }}
+{{- if len .Examples }}
+### Examples
+~~~bash
+{{- range .Examples }}
+# {{ .Description }}
+$ {{ .Command }}
+{{ end -}}
+~~~
+{{- end }}
+{{ end }}

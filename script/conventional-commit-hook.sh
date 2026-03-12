@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Add to git hooks as a commit-msg hook to enforce semantic commit messages.
-# ln -s ../../script/semantic-commit-hook.sh .git/hooks/commit-msg
+# Add to git hooks as a commit-msg hook to enforce conventional commit messages.
+# ln -s ../../script/conventional-commit-hook.sh .git/hooks/commit-msg
 
 function validate_title {
   grep -qE '^(Merge|((feat|fix|ci|docs|refactor|perf|test|build|style)(\([a-z0-9\s\-\_\,]+\))?!?:\s\w))' <<<"$1"
 }
 
 function explain_scheme {
-  echo "Your commit message title did not follow semantic versioning:"
+  echo "Your commit message title did not follow the Conventional Commit message spec:"
   echo ""
   echo "  $1"
   echo ""

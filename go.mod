@@ -64,6 +64,7 @@ require (
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/sagikazarmark/locafero v0.12.0 // indirect
+	github.com/savioxavier/termlink v1.4.3 // indirect
 	github.com/securego/gosec/v2 v2.24.7 // indirect
 	github.com/sethvargo/ratchet v0.11.4 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect

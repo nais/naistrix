@@ -15,26 +15,26 @@ import (
 	"github.com/spf13/viper"
 )
 
-// configCommand creates the built-in config command for managing configuration.
-func configCommand(config *viper.Viper) *Command {
+// defaultsCommand creates the built-in defaults command for managing default flags for a user.
+func defaultsCommand(name string, config *viper.Viper) *Command {
 	return &Command{
-		Name:  "config",
-		Title: "Manage configuration file / values.",
+		Name:  name,
+		Title: "Manage default flag values.",
 		Description: heredoc.Docf(`
-			The config command allows you to set, get, unset and list configuration values stored in the configuration file.
+			The %s command allows you to set, get, unset and list values stored in the configuration file.
 
 			Configuration values acts as defaults for various flags throughout the application.
-		`),
+		`, name),
 		SubCommands: []*Command{
-			configSet(config),
-			configGet(config),
-			configList(config),
-			configUnset(config),
+			defaultsSet(config),
+			defaultsGet(config),
+			defaultsList(config),
+			defaultsUnset(config),
 		},
 	}
 }
 
-func configSet(config *viper.Viper) *Command {
+func defaultsSet(config *viper.Viper) *Command {
 	return &Command{
 		Name: "set",
 		Args: []Argument{
@@ -92,7 +92,7 @@ func configSet(config *viper.Viper) *Command {
 	}
 }
 
-func configGet(config *viper.Viper) *Command {
+func defaultsGet(config *viper.Viper) *Command {
 	return &Command{
 		Name:             "get",
 		Title:            "Get one or more configuration values.",
@@ -120,7 +120,7 @@ func configGet(config *viper.Viper) *Command {
 	}
 }
 
-func configList(config *viper.Viper) *Command {
+func defaultsList(config *viper.Viper) *Command {
 	return &Command{
 		Name:  "list",
 		Title: "List all configuration values found in the configuration file.",
@@ -157,7 +157,7 @@ func configList(config *viper.Viper) *Command {
 	}
 }
 
-func configUnset(config *viper.Viper) *Command {
+func defaultsUnset(config *viper.Viper) *Command {
 	return &Command{
 		Name:             "unset",
 		Title:            "Unset one or more configuration values.",

@@ -13,31 +13,31 @@ func TestConfig(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "config.yaml")
 
-	if got, err := runCommand(configPath, "config list"); err != nil {
+	if got, err := runCommand(configPath, "defaults list"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	} else if contains := "is empty, or it does not yet exist"; !strings.Contains(got, contains) {
 		t.Fatalf("expected output to contain %q, got %q", contains, got)
 	}
 
-	if got, err := runCommand(configPath, "config set expected_key expected_value"); err != nil {
+	if got, err := runCommand(configPath, "defaults set expected_key expected_value"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	} else if contains := "Set expected_key = expected_value"; !strings.Contains(got, contains) {
 		t.Fatalf("expected output to contain %q, got %q", contains, got)
 	}
 
-	if got, err := runCommand(configPath, "config get expected_key"); err != nil {
+	if got, err := runCommand(configPath, "defaults get expected_key"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	} else if contains := "expected_key = expected_value"; !strings.Contains(got, contains) {
 		t.Fatalf("expected output to contain %q, got %q", contains, got)
 	}
 
-	if got, err := runCommand(configPath, "config unset expected_key"); err != nil {
+	if got, err := runCommand(configPath, "defaults unset expected_key"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	} else if contains := "Unset expected_key (value: expected_value)"; !strings.Contains(got, contains) {
 		t.Fatalf("expected output to contain %q, got %q", contains, got)
 	}
 
-	if got, err := runCommand(configPath, "config get expected_key"); err != nil {
+	if got, err := runCommand(configPath, "defaults get expected_key"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	} else if contains := "No such configuration key: expected_key"; !strings.Contains(got, contains) {
 		t.Fatalf("expected output to contain %q, got %q", contains, got)

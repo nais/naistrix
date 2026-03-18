@@ -54,6 +54,9 @@ type Application struct {
 	// method.
 	executedCommand *cobra.Command
 
+	// defaultsCommandName is the name of the defaults command.
+	defaultsCommandName string
+
 	// config is the Viper configuration instance used for managing application configuration.
 	config *viper.Viper
 }
@@ -69,6 +72,13 @@ type topLevelAliases map[string]*Command
 func ApplicationWithWriter(w io.Writer) ApplicationOptionFunc {
 	return func(a *Application) {
 		a.writer = w
+	}
+}
+
+// ApplicationWithDefaultsCommandName sets the name of the "defaults" command.
+func ApplicationWithDefaultsCommandName(name string) ApplicationOptionFunc {
+	return func(a *Application) {
+		a.defaultsCommandName = name
 	}
 }
 
@@ -138,7 +148,8 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 		flags: &GlobalFlags{
 			Config: userConfigDir + "/config.yaml",
 		},
-		config: v,
+		config:              v,
+		defaultsCommandName: "defaults",
 	}
 
 	for _, opt := range opts {
@@ -188,8 +199,8 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 		return nil, nil, fmt.Errorf("failed to setup application flags: %w", err)
 	}
 
-	if err := app.AddCommand(configCommand(app.config)); err != nil {
-		return nil, nil, fmt.Errorf("failed to add config command: %w", err)
+	if err := app.AddCommand(defaultsCommand(app.defaultsCommandName, app.config)); err != nil {
+		return nil, nil, fmt.Errorf("failed to add defaults command: %w", err)
 	}
 
 	return app, app.flags, nil

@@ -182,7 +182,9 @@ func generateDocsForCommand(cmd *Command, root *os.Root) error {
 func commandTemplateAliases(cmd *Command) []string {
 	ret := make([]string, len(cmd.Aliases))
 	for i, s := range cmd.Aliases {
-		ret[i] = cmd.cobraCmd.CommandPath() + " " + s
+		parts := strings.Split(cmd.cobraCmd.CommandPath(), " ")
+		parts[len(parts)-1] = s
+		ret[i] = strings.Join(parts, " ")
 	}
 	slices.Sort(ret)
 	return ret

@@ -3,6 +3,7 @@ package naistrix
 import (
 	_ "embed"
 	"fmt"
+	"io"
 	"os"
 	"slices"
 	"strings"
@@ -18,6 +19,13 @@ var commandTemplate string
 type generateDocsOptions struct {
 	// targetDir is the directory where the generated documentation files will be saved, defaults to $CWD/docs.
 	targetDir string
+
+	// strict mode outputs warnings on missing documentation content, e.g. missing descriptions.
+	strict bool
+
+	// outputWriter is used to output warnings and other messages to the user during the documentation generation
+	// process, defaults to os.StdOut.
+	outputWriter io.Writer
 }
 
 // GenerateDocsOptionFunc is a function that configures the documentation generation process.
@@ -27,6 +35,20 @@ type GenerateDocsOptionFunc func(*generateDocsOptions)
 func GenerateDocsWithTargetDir(targetDir string) GenerateDocsOptionFunc {
 	return func(o *generateDocsOptions) {
 		o.targetDir = targetDir
+	}
+}
+
+// GenerateDocsWithStrictMode can be used to enable strict mode.
+func GenerateDocsWithStrictMode() GenerateDocsOptionFunc {
+	return func(o *generateDocsOptions) {
+		o.strict = true
+	}
+}
+
+// GenerateDocsWithOutputWriter can be used to override the default output writer.
+func GenerateDocsWithOutputWriter(ow io.Writer) GenerateDocsOptionFunc {
+	return func(o *generateDocsOptions) {
+		o.outputWriter = ow
 	}
 }
 
@@ -89,7 +111,9 @@ type commandTemplateDataExample struct {
 // directory can be changed using the GenerateDocsWithTargetDir option.
 func (a *Application) GenerateDocs(opts ...GenerateDocsOptionFunc) error {
 	options := &generateDocsOptions{
-		targetDir: "docs",
+		targetDir:    "docs",
+		strict:       false,
+		outputWriter: os.Stdout,
 	}
 
 	for _, o := range opts {
@@ -109,7 +133,7 @@ func (a *Application) GenerateDocs(opts ...GenerateDocsOptionFunc) error {
 	}()
 
 	for _, cmd := range a.commands {
-		if err := generateDocsForCommand(cmd, root); err != nil {
+		if err := generateDocsForCommand(cmd, root, options.strict, options.outputWriter); err != nil {
 			return fmt.Errorf("failed to generate docs for command %q: %v", cmd.Name, err)
 		}
 	}
@@ -118,7 +142,7 @@ func (a *Application) GenerateDocs(opts ...GenerateDocsOptionFunc) error {
 }
 
 // generateDocsForCommand generates docs for a command in a recursive manner.
-func generateDocsForCommand(cmd *Command, root *os.Root) error {
+func generateDocsForCommand(cmd *Command, root *os.Root, strict bool, ow io.Writer) error {
 	fn := filename(cmd)
 	f, err := root.Create(fn)
 	if err != nil {
@@ -156,6 +180,10 @@ func generateDocsForCommand(cmd *Command, root *os.Root) error {
 		InheritedFlags: commandTemplateFlags(cmd.cobraCmd.InheritedFlags()),
 	}
 
+	if strict {
+		strictChecks(data, ow)
+	}
+
 	tmpl, err := template.New("command").Funcs(template.FuncMap{
 		"linkify": func(s string) string {
 			return strings.ReplaceAll(s, " ", "_")
@@ -170,12 +198,21 @@ func generateDocsForCommand(cmd *Command, root *os.Root) error {
 	}
 
 	for _, s := range cmd.SubCommands {
-		if err := generateDocsForCommand(s, root); err != nil {
+		if err := generateDocsForCommand(s, root, strict, ow); err != nil {
 			return fmt.Errorf("failed to generate docs for subcommand %q: %v", s.Name, err)
 		}
 	}
 
 	return nil
+}
+
+// strictChecks runs checks on the data passed to the template, and can output messages to the user on missing and/or
+// invalid content.
+func strictChecks(data commandTemplateData, ow io.Writer) {
+	w := NewOutputWriter(ow, new(OutputVerbosityLevelNormal))
+	if data.Description == "" {
+		w.Warnf("%q is missing a description\n", data.Name)
+	}
 }
 
 // commandTemplateAliases generates a list of aliases for the given command.

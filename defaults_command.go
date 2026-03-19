@@ -41,7 +41,7 @@ func defaultsSet(config *viper.Viper) *Command {
 			{Name: "key"},
 			{Name: "value"},
 		},
-		Title:       "Set a configuration value",
+		Title:       "Set a configuration value.",
 		Description: "Set a configuration value in the configuration file. This value will be used as default for relevant flags throughout the application.",
 		AutoCompleteFunc: func(_ context.Context, args *Arguments, _ string) ([]string, string) {
 			settings, err := getSettingsFromConfigFile(config)
@@ -122,8 +122,9 @@ func defaultsGet(config *viper.Viper) *Command {
 
 func defaultsList(config *viper.Viper) *Command {
 	return &Command{
-		Name:  "list",
-		Title: "List all configuration values found in the configuration file.",
+		Name:        "list",
+		Title:       "List configuration values.",
+		Description: "List all configuration values found in the configuration file.",
 		RunFunc: func(_ context.Context, _ *Arguments, out *OutputWriter) error {
 			settings, err := getSettingsFromConfigFile(config)
 			if err != nil {

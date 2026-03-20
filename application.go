@@ -282,6 +282,7 @@ func (a *Application) createAliasCommand(alias string, c *Command) *cobra.Comman
 		Short:              short,
 		Long:               short + "\n\nRefer to the original command for more details.",
 		DisableFlagParsing: true,
+		SilenceUsage:       true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path := strings.Split(c.cobraCmd.CommandPath(), " ")[1:] // skip the CLI name
 			a.rootCommand.SetArgs(append(path, args...))

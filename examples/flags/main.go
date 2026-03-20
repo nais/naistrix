@@ -74,7 +74,7 @@ func main() {
 		"v0.0.0",
 	)
 	if err != nil {
-		fmt.Printf("error when creating application: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "error when creating application: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -82,7 +82,7 @@ func main() {
 
 	extraGlobalFlags := &GlobalFlags{}
 	if err := app.AddGlobalFlags(extraGlobalFlags); err != nil {
-		fmt.Printf("error when adding global flags: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "error when adding global flags: %v\n", err)
 	}
 
 	err = app.AddCommand(&naistrix.Command{
@@ -94,12 +94,12 @@ func main() {
 		},
 	})
 	if err != nil {
-		fmt.Printf("error when adding command: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "error when adding command: %v\n", err)
 		os.Exit(1)
 	}
 
 	if err := app.Run(); err != nil {
-		fmt.Printf("error when running application: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "error when running application: %v\n", err)
 		os.Exit(1)
 	}
 }

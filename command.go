@@ -282,6 +282,8 @@ func (c *Command) cobraRun(out *OutputWriter) func(*cobra.Command, []string) err
 	}
 
 	return func(cmd *cobra.Command, args []string) error {
+		// Silence the usage for errors that might occur in the RunFunc of the command
+		cmd.SilenceUsage = true
 		return c.RunFunc(cmd.Context(), newArguments(c.Args, args), out)
 	}
 }

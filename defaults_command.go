@@ -16,19 +16,19 @@ import (
 )
 
 // defaultsCommand creates the built-in defaults command for managing default flags for a user.
-func defaultsCommand(name string, config *viper.Viper) *Command {
+func defaultsCommand(commandName string, config *viper.Viper) *Command {
 	return &Command{
-		Name:  name,
+		Name:  commandName,
 		Title: "Manage default flag values.",
 		Description: heredoc.Docf(`
 			The %s command allows you to set, get, unset and list values stored in the configuration file.
 
 			Configuration values acts as defaults for various flags throughout the application.
-		`, name),
+		`, commandName),
 		SubCommands: []*Command{
 			defaultsSet(config),
-			defaultsGet(config),
-			defaultsList(config),
+			defaultsGet(commandName, config),
+			defaultsList(commandName, config),
 			defaultsUnset(config),
 		},
 	}
@@ -92,7 +92,7 @@ func defaultsSet(config *viper.Viper) *Command {
 	}
 }
 
-func defaultsGet(config *viper.Viper) *Command {
+func defaultsGet(defaultsCommandName string, config *viper.Viper) *Command {
 	return &Command{
 		Name:             "get",
 		Title:            "Get one or more configuration values.",
@@ -108,7 +108,7 @@ func defaultsGet(config *viper.Viper) *Command {
 			for _, key := range args.GetRepeatable("key") {
 				value, ok := settings[key]
 				if !ok {
-					out.Printf("No such configuration key: <info>%s</info>, create the value using <info>config set %s <value></info>\n", key, key)
+					out.Printf("No such configuration key: <info>%s</info>, create the value using <info>%s set %s <value></info>\n", key, defaultsCommandName, key)
 					continue
 				}
 
@@ -120,7 +120,7 @@ func defaultsGet(config *viper.Viper) *Command {
 	}
 }
 
-func defaultsList(config *viper.Viper) *Command {
+func defaultsList(defaultsCommandName string, config *viper.Viper) *Command {
 	return &Command{
 		Name:        "list",
 		Title:       "List configuration values.",
@@ -133,7 +133,7 @@ func defaultsList(config *viper.Viper) *Command {
 
 			if len(settings) == 0 {
 				out.Printf("The configuration file <info>%s</info> is empty, or it does not yet exist\n", config.ConfigFileUsed())
-				out.Println("Use the <info>config set <key> <value></info> command to set configuration values")
+				out.Printf("Use the <info>%s set <key> <value></info> command to set configuration values\n", defaultsCommandName)
 				return nil
 			}
 
@@ -152,7 +152,7 @@ func defaultsList(config *viper.Viper) *Command {
 			values = append([][]string{{"Key", "Value"}}, values...)
 			out.Printf("The following configuration values are set in <info>%s</info>:\n\n", config.ConfigFileUsed())
 			_ = out.Table().Render(values)
-			out.Println("\nUse the <info>config set <key> <value></info> command to update or create values, or the <info>config unset <value>[, <value>]</info> command to remove values")
+			out.Printf("\nUse the <info>%[1]s set <key> <value></info> command to update or create values, or the <info>%[1]s unset <key>[, <key>]</info> command to remove values\n", defaultsCommandName)
 			return nil
 		},
 	}

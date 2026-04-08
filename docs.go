@@ -81,7 +81,7 @@ type commandTemplateData struct {
 	// Examples are examples on how to use the command.
 	Examples []commandTemplateDataExample
 
-	// TODO: deprecations, top level aliases, groups, more?
+	// TODO: top level aliases, groups, more?
 }
 
 // commandTemplateDataFlag represents a command flag (option).
@@ -132,8 +132,9 @@ func (a *Application) GenerateDocs(opts ...GenerateDocsOptionFunc) error {
 		_ = root.Close()
 	}()
 
+	w := NewOutputWriter(options.outputWriter, new(OutputVerbosityLevelNormal))
 	for _, cmd := range a.commands {
-		if err := generateDocsForCommand(cmd, root, options.strict, options.outputWriter); err != nil {
+		if err := generateDocsForCommand(cmd, root, options.strict, w); err != nil {
 			return fmt.Errorf("failed to generate docs for command %q: %v", cmd.Name, err)
 		}
 	}
@@ -142,7 +143,12 @@ func (a *Application) GenerateDocs(opts ...GenerateDocsOptionFunc) error {
 }
 
 // generateDocsForCommand generates docs for a command in a recursive manner.
-func generateDocsForCommand(cmd *Command, root *os.Root, strict bool, ow io.Writer) error {
+func generateDocsForCommand(cmd *Command, root *os.Root, strict bool, ow *OutputWriter) error {
+	if cmd.Deprecated != nil {
+		ow.Infof("skipping deprecated command %q\n", cmd.cobraCmd.CommandPath())
+		return nil
+	}
+
 	fn := filename(cmd)
 	f, err := root.Create(fn)
 	if err != nil {
@@ -208,10 +214,9 @@ func generateDocsForCommand(cmd *Command, root *os.Root, strict bool, ow io.Writ
 
 // strictChecks runs checks on the data passed to the template, and can output messages to the user on missing and/or
 // invalid content.
-func strictChecks(data commandTemplateData, ow io.Writer) {
-	w := NewOutputWriter(ow, new(OutputVerbosityLevelNormal))
+func strictChecks(data commandTemplateData, ow *OutputWriter) {
 	if data.Description == "" {
-		w.Warnf("%q is missing a description\n", data.Name)
+		ow.Warnf("%q is missing a description\n", data.Name)
 	}
 }
 

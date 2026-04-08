@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #MISE description="Format all go code using gofumpt, and fail if any files are not formatted correctly."
-#MISE depends=["fmt"]
+#MISE depends=["fmt", "gofix"]
 set -euo pipefail
 
 if ! git diff --exit-code --name-only; then

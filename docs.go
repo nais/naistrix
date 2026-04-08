@@ -234,9 +234,12 @@ func commandTemplateAliases(cmd *Command) []string {
 
 // commandTemplateSubCommands generates a list of sub commands for the given command.
 func commandTemplateSubCommands(cmd *Command) []string {
-	ret := make([]string, len(cmd.SubCommands))
-	for i, c := range cmd.SubCommands {
-		ret[i] = c.cobraCmd.CommandPath()
+	ret := make([]string, 0)
+	for _, c := range cmd.SubCommands {
+		if c.Deprecated != nil {
+			continue
+		}
+		ret = append(ret, c.cobraCmd.CommandPath())
 	}
 	slices.Sort(ret)
 	return ret

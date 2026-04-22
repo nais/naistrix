@@ -5,7 +5,7 @@ import (
 	"io"
 
 	"github.com/nais/naistrix/internal/color"
-	"github.com/nais/naistrix/output"
+	"github.com/nais/naistrix/pkg/output"
 	"github.com/pterm/pterm"
 )
 
@@ -37,12 +37,6 @@ func (w *OutputWriter) JSON(opts ...output.JSONOptionFunc) *output.JSON {
 // YAML creates a new YAML output that can be rendered to the destination.
 func (w *OutputWriter) YAML() *output.YAML {
 	return output.NewYAML(w.writer)
-}
-
-// Confirm prompts the user with a yes/no question and returns the response. The question will get a " [y/N]" suffix
-// automatically.
-func (w *OutputWriter) Confirm(format string, a ...any) (bool, error) {
-	return pterm.DefaultInteractiveConfirm.Show(fmt.Sprintf(format, a...))
 }
 
 // Infoln writes a line of informational output to the destination, appending a newline at the end. Spaces are added

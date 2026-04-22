@@ -1,23 +1,26 @@
 # Gather input from the user
 
-Gathering input from the user is a common task for CLI tools. naistrix has some helper functions to achieve this.
+Gathering input from the user is a common task for CLI tools. naistrix has some helper functions to achieve this located in the `github.com/nais/naistrix/pkg/input` package.
 
 ## Confirm
 
 If you want to ask the user for confirmation, you can use the `Confirm` function:
 
 ```go
-RunFunc: func(_ context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
-    if ok, err := input.Confirm("Are you sure you want to continue?"); err != nil {
-        return fmt.Errorf("unable to get confirmation: %w", err)
-    } else if !ok {
-        out.Println("We will not continue.")
+err := app.AddCommand(&naistrix.Command{
+    RunFunc: func (_ context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
+        if ok, err := input.Confirm("Are you sure you want to continue?"); err != nil {
+            return fmt.Errorf("unable to get confirmation: %w", err)
+        } else if !ok {
+            out.Println("We will not continue.")
+            return nil
+        }
+        
+        out.Println("Continuing operation.")
         return nil
-    }
-
-    out.Println("Continuing operation.")
-    return nil
-},
+    },
+    // ...
+})
 ```
 
 ## Input
@@ -25,15 +28,18 @@ RunFunc: func(_ context.Context, _ *naistrix.Arguments, out *naistrix.OutputWrit
 If you want to ask the user for input, you can use the `Input` function:
 
 ```go
-RunFunc: func(_ context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
-    name, err := input.Input("What is your name?")
-    if err != nil {
-        return fmt.Errorf("unable to get input: %w", err)
-    }
-
-    out.Printf("Hello, %s!\n", name)
-    return nil
-},
+err := app.AddCommand(&naistrix.Command{
+    RunFunc: func(_ context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
+        name, err := input.Input("What is your name?")
+        if err != nil {
+            return fmt.Errorf("unable to get input: %w", err)
+        }
+    
+        out.Printf("Hello, %s!\n", name)
+        return nil
+    },
+    // ...
+})
 ```
 
 ## Select
@@ -41,15 +47,18 @@ RunFunc: func(_ context.Context, _ *naistrix.Arguments, out *naistrix.OutputWrit
 If you have a list of items that you want the user to select from, you can use the `Select` function:
 
 ```go
-RunFunc: func(_ context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
-    option, err := input.Select("Select an option", []string{"option1", "option2", "option3"})
-    if err != nil {
-        return fmt.Errorf("unable to get selection: %w", err)
-    }
+err := app.AddCommand(&naistrix.Command{
+    RunFunc: func(_ context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
+        option, err := input.Select("Select an option", []string{"option1", "option2", "option3"})
+        if err != nil {
+            return fmt.Errorf("unable to get selection: %w", err)
+        }
 
-    out.Println("You selected:", option)
-    return nil
-},
+        out.Println("You selected:", option)
+        return nil
+    },
+    // ...
+})
 ```
 
 The slice you pass to the `Select` function can be of any type, but for complex types it is recommended to implement the `fmt.Stringer` interface to provide a user-friendly representation of the options.

@@ -2,9 +2,10 @@ package input
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 
 	"github.com/pterm/pterm"
-	"golang.org/x/exp/maps"
 )
 
 // Confirm prompts the user with a yes/no question and returns the response. The question will get a " [y/N]" suffix
@@ -24,20 +25,20 @@ func Select[T any](prompt string, options []T) (T, error) {
 	var empty T
 
 	if len(options) == 0 {
-		return empty, fmt.Errorf("no options provided for selection")
+		return empty, fmt.Errorf("no options provided")
 	}
 
 	labels := make(map[string]struct{})
 	for i, o := range options {
 		lbl := fmt.Sprint(o)
 		if _, exists := labels[lbl]; exists {
-			return empty, fmt.Errorf("duplicate label found in option %d", i)
+			return empty, fmt.Errorf("duplicate label: %s (index %d)", lbl, i)
 		}
 		labels[lbl] = struct{}{}
 	}
 
 	chosen, err := pterm.DefaultInteractiveSelect.
-		WithOptions(maps.Keys(labels)).
+		WithOptions(slices.Collect(maps.Keys(labels))).
 		WithFilterInputPlaceholder("[type to filter]").
 		Show(prompt)
 	if err != nil {

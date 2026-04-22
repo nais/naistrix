@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/MakeNowJust/heredoc/v2"
+	"github.com/nais/naistrix/pkg/input"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -269,7 +270,7 @@ func (c *Command) cobraRun(out *OutputWriter) func(*cobra.Command, []string) err
 				return ErrDeprecatedCommandWithoutReplacement
 			}
 
-			executeReplacement, err := out.Confirm("Do you want to proceed with the replacement command?")
+			executeReplacement, err := input.Confirm("Do you want to proceed with the replacement command?")
 			if err != nil {
 				return err
 			}

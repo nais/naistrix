@@ -3,10 +3,10 @@ package naistrix
 // Arguments represents the arguments sent to a command.
 type Arguments struct {
 	// args holds the command arguments provided by the user.
-	args []*input
+	args []*userArg
 }
 
-type input struct {
+type userArg struct {
 	name       string
 	repeatable bool
 	value      any
@@ -14,7 +14,7 @@ type input struct {
 
 // newArguments creates a new Arguments instance based on the command definition and the arguments provided by the user.
 func newArguments(commandArgs []Argument, userArgs []string) *Arguments {
-	a := make([]*input, 0)
+	a := make([]*userArg, 0)
 
 	for i, commandArg := range commandArgs {
 		if i >= len(userArgs) {
@@ -28,7 +28,7 @@ func newArguments(commandArgs []Argument, userArgs []string) *Arguments {
 			v = userArgs[i]
 		}
 
-		a = append(a, &input{
+		a = append(a, &userArg{
 			name:       commandArg.Name,
 			repeatable: commandArg.Repeatable,
 			value:      v,

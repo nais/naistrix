@@ -8,7 +8,7 @@ import (
 
 	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/nais/naistrix"
-	"github.com/nais/naistrix/output"
+	"github.com/nais/naistrix/pkg/output"
 )
 
 func TestJSON(t *testing.T) {

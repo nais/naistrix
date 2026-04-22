@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nais/naistrix/pkg/output"
+	"github.com/nais/naistrix/output"
 )
 
 func TestTable_InvalidData(t *testing.T) {

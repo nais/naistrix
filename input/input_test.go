@@ -9,7 +9,7 @@ import (
 
 	"atomicgo.dev/keyboard"
 	"atomicgo.dev/keyboard/keys"
-	"github.com/nais/naistrix/pkg/input"
+	"github.com/nais/naistrix/input"
 )
 
 func TestConfirm_Yes(t *testing.T) {

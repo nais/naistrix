@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/nais/naistrix"
-	"github.com/nais/naistrix/pkg/output"
+	"github.com/nais/naistrix/output"
 )
 
 type User struct {

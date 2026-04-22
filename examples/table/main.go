@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/nais/naistrix"
-	"github.com/nais/naistrix/pkg/output"
+	"github.com/nais/naistrix/output"
 )
 
 // User represents a row in the table. The headings for the table is derived from the struct field names.

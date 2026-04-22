@@ -5,7 +5,7 @@ import (
 	"io"
 
 	"github.com/nais/naistrix/internal/color"
-	"github.com/nais/naistrix/pkg/output"
+	"github.com/nais/naistrix/output"
 	"github.com/pterm/pterm"
 )
 

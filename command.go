@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/MakeNowJust/heredoc/v2"
-	"github.com/nais/naistrix/pkg/input"
+	"github.com/nais/naistrix/input"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )

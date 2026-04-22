@@ -7,7 +7,7 @@ import (
 	"strconv"
 
 	"github.com/nais/naistrix"
-	"github.com/nais/naistrix/pkg/input"
+	"github.com/nais/naistrix/input"
 )
 
 type Team struct {

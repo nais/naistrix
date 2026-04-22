@@ -12,6 +12,7 @@ import (
 	"sort"
 
 	"github.com/MakeNowJust/heredoc/v2"
+	"github.com/nais/naistrix/pkg/input"
 	"github.com/spf13/viper"
 )
 
@@ -56,7 +57,7 @@ func defaultsSet(config *viper.Viper) *Command {
 			dir := filepath.Dir(configFilePath)
 
 			if _, err := os.Stat(dir); errors.Is(err, fs.ErrNotExist) {
-				if ok, err := out.Confirm("The directory for the configuration file (%s) does not exist, do you want to create it?", dir); err != nil {
+				if ok, err := input.Confirm(fmt.Sprintf("The directory for the configuration file (%s) does not exist, do you want to create it?", dir)); err != nil {
 					return err
 				} else if !ok {
 					out.Warnln("Directory creation aborted; configuration not saved")

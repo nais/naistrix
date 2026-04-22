@@ -237,7 +237,12 @@ func TestExecutedCommands(t *testing.T) {
 	})
 
 	t.Run("invalid command", func(t *testing.T) {
-		app, _, err := naistrix.NewApplication("app", "title", "v0.0.0")
+		app, _, err := naistrix.NewApplication(
+			"app",
+			"title",
+			"v0.0.0",
+			naistrix.ApplicationWithWriter(&bytes.Buffer{}),
+		)
 		if err != nil {
 			t.Fatalf("expected no error, got: %v", err)
 		}

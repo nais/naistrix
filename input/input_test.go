@@ -16,11 +16,10 @@ func TestConfirm_Yes(t *testing.T) {
 	go func() {
 		_ = keyboard.SimulateKeyPress('y')
 	}()
-	result, err := input.Confirm("Are you sure?")
-	if err != nil {
+
+	if result, err := input.Confirm("Are you sure?"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
-	}
-	if !result {
+	} else if !result {
 		t.Errorf("expected true when pressing 'y'")
 	}
 }
@@ -29,11 +28,10 @@ func TestConfirm_No(t *testing.T) {
 	go func() {
 		_ = keyboard.SimulateKeyPress('n')
 	}()
-	result, err := input.Confirm("Are you sure?")
-	if err != nil {
+
+	if result, err := input.Confirm("Are you sure?"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
-	}
-	if result {
+	} else if result {
 		t.Errorf("expected false when pressing 'n'")
 	}
 }
@@ -42,12 +40,23 @@ func TestConfirm_DefaultIsNo(t *testing.T) {
 	go func() {
 		_ = keyboard.SimulateKeyPress(keys.Enter)
 	}()
-	result, err := input.Confirm("Are you sure?")
-	if err != nil {
+
+	if result, err := input.Confirm("Are you sure?"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
-	}
-	if result {
+	} else if result {
 		t.Errorf("expected false (default) when pressing Enter")
+	}
+}
+
+func TestConfirm_OverrideDefault(t *testing.T) {
+	go func() {
+		_ = keyboard.SimulateKeyPress(keys.Enter)
+	}()
+
+	if result, err := input.Confirm("Are you sure?", input.ConfirmWithDefaultTrue()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	} else if !result {
+		t.Errorf("expected true when pressing Enter")
 	}
 }
 
@@ -57,11 +66,9 @@ func TestInput_ReturnsValue(t *testing.T) {
 		_ = keyboard.SimulateKeyPress(keys.Enter)
 	}()
 
-	result, err := input.Input("Enter something")
-	if err != nil {
+	if result, err := input.Input("Enter something"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
-	}
-	if result != "hi" {
+	} else if result != "hi" {
 		t.Errorf("expected %q, got %q", "hi", result)
 	}
 }
@@ -70,11 +77,10 @@ func TestInput_DefaultValueOnEnter(t *testing.T) {
 	go func() {
 		_ = keyboard.SimulateKeyPress(keys.Enter)
 	}()
-	result, err := input.Input("Enter something")
-	if err != nil {
+
+	if result, err := input.Input("Enter something"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
-	}
-	if result != "" {
+	} else if result != "" {
 		t.Errorf("expected empty string, got %q", result)
 	}
 }

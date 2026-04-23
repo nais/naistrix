@@ -93,6 +93,9 @@ func TestOutputWriter_OutputStyles(t *testing.T) {
 		Name:  "test",
 		Title: "Test command",
 		RunFunc: func(_ context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
+			out.Successf("some success\n")
+			out.Successln("more", "success")
+
 			out.Infof("some info\n")
 			out.Infoln("more", "info")
 
@@ -120,6 +123,8 @@ func TestOutputWriter_OutputStyles(t *testing.T) {
 
 	output := buf.String()
 	expectedSubstrings := []string{
+		"SUCCESS: some success",
+		"SUCCESS: more success",
 		"INFO: some info",
 		"INFO: more info",
 		"WARNING: some warning",

@@ -39,6 +39,17 @@ func (w *OutputWriter) YAML() *output.YAML {
 	return output.NewYAML(w.writer)
 }
 
+// Successln writes a line of "successful" output to the destination, appending a newline at the end. Spaces are added
+// between arguments. This outputs in all verbosity levels.
+func (w *OutputWriter) Successln(a ...any) {
+	pterm.Success.WithWriter(w.writer).Println(a...)
+}
+
+// Successf writes formatted "successful" output to the destination. This outputs in all verbosity levels.
+func (w *OutputWriter) Successf(format string, a ...any) {
+	pterm.Success.WithWriter(w.writer).Printf(format, a...)
+}
+
 // Infoln writes a line of informational output to the destination, appending a newline at the end. Spaces are added
 // between arguments. This outputs in all verbosity levels.
 func (w *OutputWriter) Infoln(a ...any) {

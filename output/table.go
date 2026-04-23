@@ -21,10 +21,34 @@ func TableWithShowHiddenColumns() TableOptionFunc {
 	}
 }
 
+// TableWithTopMargin adds an empty line above the table.
+func TableWithTopMargin() TableOptionFunc {
+	return func(t *Table) {
+		t.topMargin = true
+	}
+}
+
+// TableWithBottomMargin adds an empty line after the table.
+func TableWithBottomMargin() TableOptionFunc {
+	return func(t *Table) {
+		t.bottomMargin = true
+	}
+}
+
+// TableWithMargins adds empty lines above and after the table.
+func TableWithMargins() TableOptionFunc {
+	return func(t *Table) {
+		t.topMargin = true
+		t.bottomMargin = true
+	}
+}
+
 type Table struct {
 	showHidden   bool
 	tablePrinter pterm.TablePrinter
 	writer       io.Writer
+	topMargin    bool
+	bottomMargin bool
 }
 
 // NewTable creates a new Table that will write to the provided io.Writer. The table can be configured using the
@@ -70,6 +94,15 @@ func (t *Table) Render(data any) error {
 
 	// fix double newlines added by pterm
 	b := bytes.TrimRight(buf.Bytes(), "\n")
+
+	if t.topMargin {
+		b = append([]byte{'\n'}, b...)
+	}
+
+	if t.bottomMargin {
+		b = append(b, '\n')
+	}
+
 	if _, err := t.writer.Write(append(b, '\n')); err != nil {
 		return err
 	}

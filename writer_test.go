@@ -93,22 +93,19 @@ func TestOutputWriter_OutputStyles(t *testing.T) {
 		Name:  "test",
 		Title: "Test command",
 		RunFunc: func(_ context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
-			out.Successf("some success\n")
-			out.Successln("more", "success")
-
-			out.Infof("some info\n")
-			out.Infoln("more", "info")
-
-			out.Warnf("some warning\n")
-			out.Warnln("more", "warning")
-
-			out.Errorf("some error\n")
-			out.Errorln("more", "error")
-
-			out.Println("An <info>informational</info> message.")
-			out.Println("A <warn>warning</warn> message.")
-			out.Println("An <error>error</error> message.")
-			out.Println("Some <info>info</info>, a <warn>warning</warn> and an <error>error</error>.")
+			out.
+				Successf("some success\n").
+				Successln("more", "success").
+				Infof("some info\n").
+				Infoln("more", "info").
+				Warnf("some warning\n").
+				Warnln("more", "warning").
+				Errorf("some error\n").
+				Errorln("more", "error").
+				Println("An <info>informational</info> message.").
+				Println("A <warn>warning</warn> message.").
+				Println("An <error>error</error> message.").
+				Println("Some <info>info</info>, a <warn>warning</warn> and an <error>error</error>.")
 
 			return nil
 		},

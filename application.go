@@ -256,6 +256,13 @@ func (a *Application) AddCommand(cmd *Command, cmds ...*Command) error {
 	return nil
 }
 
+// Output returns the OutputWriter used in the application.
+func (a *Application) Output() *OutputWriter {
+	return a.output
+}
+
+// registerTopLevelAliases registers the provided top-level aliases as regular commands in the application. If there are
+// duplicate aliases an error will be returned.
 func (a *Application) registerTopLevelAliases(aliases topLevelAliases) error {
 	namesAndAliases := slices.Collect(maps.Keys(aliases))
 	for _, c := range a.commands {

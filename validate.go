@@ -37,3 +37,20 @@ func plural(n int) string {
 	}
 	return "s"
 }
+
+// ValidateFuncs returns a [ValidateFunc] that runs the provided validators in order and returns the first error
+// encountered, short-circuiting on failure. Nil entries in fns are skipped. This is useful for composing several
+// smaller, focused validators into a single one with logical AND semantics.
+func ValidateFuncs(fns ...ValidateFunc) ValidateFunc {
+	return func(ctx context.Context, args *Arguments) error {
+		for _, fn := range fns {
+			if fn == nil {
+				continue
+			}
+			if err := fn(ctx, args); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+}

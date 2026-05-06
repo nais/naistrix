@@ -363,8 +363,7 @@ func (c *Command) init(cmd string, out *OutputWriter, usageTemplate string, conf
 			}
 
 			if err := c.ValidateFunc(co.Context(), newArguments(c.Args, args)); err != nil {
-				var e Error
-				if errors.As(err, &e) {
+				if e, ok := errors.AsType[Error](err); ok {
 					return e
 				}
 				return Errorf("input validation failed: %v", err)

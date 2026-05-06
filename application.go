@@ -94,6 +94,7 @@ type runOptions struct {
 	args []string
 }
 
+// RunOptionFunc is a function used to control options for the [Application.Run] method.
 type RunOptionFunc func(*runOptions)
 
 // RunWithContext sets the context for the application. The default context is [context.Background].

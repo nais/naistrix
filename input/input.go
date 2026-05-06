@@ -1,3 +1,5 @@
+// Package input provides helpers for prompting the user for interactive input from the terminal, such as confirmations,
+// free-form text, and selection from a list of options.
 package input
 
 import (

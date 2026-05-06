@@ -61,14 +61,14 @@ type Application struct {
 	config *viper.Viper
 }
 
-// ApplicationOptionFunc is a function that configures an Application.
+// ApplicationOptionFunc is a function that configures an [Application].
 type ApplicationOptionFunc func(*Application)
 
 // topLevelAliases is a map of command names to the command it points to
 type topLevelAliases map[string]*Command
 
-// ApplicationWithWriter sets the output destination for the OutputWriter used in the application. This defaults to
-// os.Stdout.
+// ApplicationWithWriter sets the output destination for the [OutputWriter] used in the application. This defaults to
+// [os.Stdout].
 func ApplicationWithWriter(w io.Writer) ApplicationOptionFunc {
 	return func(a *Application) {
 		a.writer = w
@@ -96,22 +96,22 @@ type runOptions struct {
 
 type RunOptionFunc func(*runOptions)
 
-// RunWithContext sets the context for the application. The default context is context.Background().
+// RunWithContext sets the context for the application. The default context is [context.Background].
 func RunWithContext(ctx context.Context) RunOptionFunc {
 	return func(ro *runOptions) {
 		ro.ctx = ctx
 	}
 }
 
-// RunWithArgs sets the command line arguments for the application. The default is os.Args[1:].
+// RunWithArgs sets the command line arguments for the application. The default is [os.Args] without the program name.
 func RunWithArgs(args []string) RunOptionFunc {
 	return func(ro *runOptions) {
 		ro.args = args
 	}
 }
 
-// NewApplication creates a new Application with the given name, title and version. Use the available
-// ApplicationOptionFunc functions to configure the application to your needs.
+// NewApplication creates a new [Application] with the given name, title and version. Use the available
+// [ApplicationOptionFunc] functions to configure the application to your needs.
 func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) (*Application, *GlobalFlags, error) {
 	if n := strings.TrimSpace(name); n == "" || strings.Contains(n, " ") {
 		return nil, nil, fmt.Errorf("application name must not be empty and must not contain spaces, got: %q", name)
@@ -256,7 +256,7 @@ func (a *Application) AddCommand(cmd *Command, cmds ...*Command) error {
 	return nil
 }
 
-// Output returns the OutputWriter used in the application.
+// Output returns the [OutputWriter] used in the application.
 func (a *Application) Output() *OutputWriter {
 	return a.output
 }

@@ -10,7 +10,7 @@ import (
 	"github.com/pterm/pterm"
 )
 
-// TableOptionFunc is a function that can be used to configure a Table.
+// TableOptionFunc is a function that can be used to configure a [Table].
 type TableOptionFunc func(*Table)
 
 // TableWithShowHiddenColumns can be used to force rendering all exported fields in a struct, even if the field have the
@@ -51,8 +51,8 @@ type Table struct {
 	bottomMargin bool
 }
 
-// NewTable creates a new Table that will write to the provided io.Writer. The table can be configured using the
-// available TableOptionFunc functions.
+// NewTable creates a new [Table] that will write to the provided [io.Writer]. The table can be configured using the
+// available [TableOptionFunc] functions.
 func NewTable(w io.Writer, opts ...TableOptionFunc) *Table {
 	t := &Table{
 		tablePrinter: pterm.DefaultTable,

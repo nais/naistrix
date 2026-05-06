@@ -13,7 +13,7 @@ import (
 )
 
 // Argument represents a positional argument for a command. All arguments for a command will be grouped together in a
-// string slice, and the arguments will be injected into the command's RunFunc (amongst others) in the order they are
+// string slice, and the arguments will be injected into the command's [RunFunc] (amongst others) in the order they are
 // defined.
 type Argument struct {
 	// Name is the name of the argument, used for help output. This field is required.
@@ -35,47 +35,49 @@ type Command struct {
 	Aliases []string
 
 	// TopLevelAliases are alternative names for the command, used to invoke the command with different names from the
-	// top-level of the CLI. This must only be used for SubCommands, and the top-level aliases must be unique across the
-	// entire CLI.
+	// top-level of the CLI. This must only be used for [Command.SubCommands], and the top-level aliases must be unique
+	// across the entire CLI.
 	TopLevelAliases []string
 
 	// Title is the title of the command, used as a short description for the help output and as a header for the
-	// optional Description field. This field is required.
+	// optional [Command.Description] field. This field is required.
 	Title string
 
 	// Description is a detailed description of the command, shown in the help output. When set, it will be prefixed
-	// with the Title field.
+	// with the [Command.Title] field.
 	Description string
 
-	// Deprecated marks the command as deprecated. When set, the commands RunFunc is never executed, instead a warning
-	// is shown to the user, and if a replacement command is specified, the user is prompted to execute the replacement
-	// command instead.
+	// Deprecated marks the command as deprecated. When set, the commands [Command.RunFunc] is never executed, instead
+	// a warning is shown to the user, and if a replacement command is specified, the user is prompted to execute the
+	// replacement command instead.
 	//
-	// Commands with one or more SubCommands can not be marked as deprecated. Instead, each subcommand must be marked as
-	// deprecated individually.
+	// Commands with one or more [Command.SubCommands] can not be marked as deprecated. Instead, each subcommand must
+	// be marked as deprecated individually.
 	Deprecated *DeprecatedCommand
 
-	// RunFunc will be executed when the command is run. The RunFunc and SubCommands fields are mutually exclusive.
+	// RunFunc will be executed when the command is run. The [Command.RunFunc] and [Command.SubCommands] fields are
+	// mutually exclusive.
 	RunFunc RunFunc
 
-	// ValidateFunc will be executed before the command's RunFunc is executed.
+	// ValidateFunc will be executed before the command's [Command.RunFunc] is executed.
 	ValidateFunc ValidateFunc
 
 	// AutoCompleteFunc sets up a function that will be used to provide auto-completion suggestions for the command.
 	AutoCompleteFunc AutoCompleteFunc
 
 	// AutoCompleteExtensions specifies which file extensions to list in autocompletion. This overrides
-	// AutoCompleteFunc.
+	// [Command.AutoCompleteFunc].
 	AutoCompleteExtensions []string
 
 	// Group places the command in a specific group. This is mainly used for grouping of commands in the help text.
 	Group string
 
-	// SubCommands adds subcommands to the command. The SubCommands and RunFunc fields are mutually exclusive.
+	// SubCommands adds subcommands to the command. The [Command.SubCommands] and [Command.RunFunc] fields are mutually
+	// exclusive.
 	SubCommands []*Command
 
-	// Args are the positional arguments to the command. The arguments will be injected into RunFunc. The command will
-	// be validated when executed to ensure that the correct amount of arguments is specified.
+	// Args are the positional arguments to the command. The arguments will be injected into [Command.RunFunc]. The
+	// command will be validated when executed to ensure that the correct amount of arguments is specified.
 	Args []Argument
 
 	// Flags sets up flags for the command.
@@ -109,8 +111,8 @@ type Example struct {
 
 // RunFunc is a function that will be executed when the command is run.
 //
-// The Arguments parameter holds the arguments specified by the user, and all output should be generated using the
-// OutputWriter.
+// The [Arguments] parameter holds the arguments specified by the user, and all output should be generated using the
+// [OutputWriter].
 type RunFunc func(ctx context.Context, args *Arguments, out *OutputWriter) error
 
 // cobraExample generates a formatted string of examples suitable for the underlying cobra.Command.

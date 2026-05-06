@@ -8,7 +8,7 @@ import (
 	"github.com/pterm/pterm"
 )
 
-// ConfirmOptionFunc is a function used to control options for the Confirm function.
+// ConfirmOptionFunc is a function used to control options for the [Confirm] function.
 type ConfirmOptionFunc func(*confirmOptions)
 
 // ConfirmWithDefaultTrue sets the default result value of the confirmation to true.

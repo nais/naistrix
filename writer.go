@@ -105,7 +105,7 @@ func (w *OutputWriter) Printf(format string, a ...any) *OutputWriter {
 }
 
 // Verboseln writes a line of verbose output to the destination, appending a newline at the end. Spaces are added
-// between arguments. This outputs in OutputVerbosityLevelVerbose and higher levels.
+// between arguments. This outputs in [OutputVerbosityLevelVerbose] and higher levels.
 func (w *OutputWriter) Verboseln(a ...any) *OutputWriter {
 	if *w.level < OutputVerbosityLevelVerbose {
 		return w
@@ -115,7 +115,7 @@ func (w *OutputWriter) Verboseln(a ...any) *OutputWriter {
 	return w
 }
 
-// Verbosef writes formatted verbose output to the destination. This outputs in OutputVerbosityLevelVerbose and higher
+// Verbosef writes formatted verbose output to the destination. This outputs in [OutputVerbosityLevelVerbose] and higher
 // levels.
 func (w *OutputWriter) Verbosef(format string, a ...any) *OutputWriter {
 	if *w.level < OutputVerbosityLevelVerbose {
@@ -127,7 +127,7 @@ func (w *OutputWriter) Verbosef(format string, a ...any) *OutputWriter {
 }
 
 // Debugln writes a line of debug output to the destination, appending a newline at the end. Spaces are added between
-// arguments. This outputs in OutputVerbosityLevelDebug and higher levels.
+// arguments. This outputs in [OutputVerbosityLevelDebug] and higher levels.
 func (w *OutputWriter) Debugln(a ...any) *OutputWriter {
 	if *w.level < OutputVerbosityLevelDebug {
 		return w
@@ -139,7 +139,7 @@ func (w *OutputWriter) Debugln(a ...any) *OutputWriter {
 	return w
 }
 
-// Debugf writes formatted debug output to the destination. This outputs in OutputVerbosityLevelDebug and higher levels.
+// Debugf writes formatted debug output to the destination. This outputs in [OutputVerbosityLevelDebug] and higher levels.
 func (w *OutputWriter) Debugf(format string, a ...any) *OutputWriter {
 	if *w.level < OutputVerbosityLevelDebug {
 		return w
@@ -152,7 +152,7 @@ func (w *OutputWriter) Debugf(format string, a ...any) *OutputWriter {
 }
 
 // Traceln writes a line of trace output to the destination, appending a newline at the end. Spaces are added between
-// arguments. This outputs in OutputVerbosityLevelTrace level.
+// arguments. This outputs in [OutputVerbosityLevelTrace] level.
 func (w *OutputWriter) Traceln(a ...any) *OutputWriter {
 	if *w.level < OutputVerbosityLevelTrace {
 		return w
@@ -166,7 +166,7 @@ func (w *OutputWriter) Traceln(a ...any) *OutputWriter {
 	return w
 }
 
-// Tracef writes formatted trace output to the destination. This outputs in OutputVerbosityLevelTrace level.
+// Tracef writes formatted trace output to the destination. This outputs in [OutputVerbosityLevelTrace] level.
 func (w *OutputWriter) Tracef(format string, a ...any) *OutputWriter {
 	if *w.level < OutputVerbosityLevelTrace {
 		return w

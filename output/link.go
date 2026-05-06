@@ -13,7 +13,7 @@ type Link struct {
 	URL  string
 }
 
-// NewLink creates a new Link.
+// NewLink creates a new [Link].
 func NewLink(name, url string) Link {
 	return Link{
 		Name: name,

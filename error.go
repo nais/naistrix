@@ -12,7 +12,7 @@ type Error struct {
 	Message string
 }
 
-// Error returns the error message formatted with pterm.Error. This method satisfies the error interface.
+// Error returns the error message formatted with [pterm.Error]. This method satisfies the error interface.
 func (e Error) Error() string {
 	return pterm.Error.Sprint(e.Message)
 }

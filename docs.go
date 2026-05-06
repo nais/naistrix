@@ -108,7 +108,7 @@ type commandTemplateDataExample struct {
 // GenerateDocs generates Markdown files for each command in the application.
 //
 // By default, the generated documentation will be placed in a "./docs" directory in the current directory. The target
-// directory can be changed using the GenerateDocsWithTargetDir option.
+// directory can be changed using the [GenerateDocsWithTargetDir] option.
 func (a *Application) GenerateDocs(opts ...GenerateDocsOptionFunc) error {
 	options := &generateDocsOptions{
 		targetDir:    "docs",

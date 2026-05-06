@@ -7,7 +7,7 @@ import (
 
 const defaultJSONIndent = "  "
 
-// JSONOptionFunc is a function that can be used to configure the JSON renderer.
+// JSONOptionFunc is a function that can be used to configure the [JSON] renderer.
 type JSONOptionFunc func(*JSON)
 
 // JSONWithPrettyOutput can be used to render "pretty" JSON instead of just a string.

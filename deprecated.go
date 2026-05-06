@@ -40,7 +40,7 @@ type DeprecatedCommand struct {
 // representing the replacement command and its arguments. Do not include the application name in the returned slice.
 type DeprecatedCommandReplacementFunc func(context.Context, *Arguments) []string
 
-// DeprecatedWithReplacement creates a DeprecatedCommand that specifies a replacement command using the provided
+// DeprecatedWithReplacement creates a [DeprecatedCommand] that specifies a replacement command using the provided
 // slice. Do not include the application name in the slice, only the replacement command along with args and flags.
 //
 // Examples:
@@ -58,16 +58,16 @@ func DeprecatedWithReplacement(args []string) *DeprecatedCommand {
 	}
 }
 
-// DeprecatedWithReplacementFunc creates a DeprecatedCommand that specifies a replacement command using the provided
-// DeprecationRunFunc. This allows for dynamic generation of the replacement command based on the current context,
-// arguments and flags.
+// DeprecatedWithReplacementFunc creates a [DeprecatedCommand] that specifies a replacement command using the provided
+// [DeprecatedCommandReplacementFunc]. This allows for dynamic generation of the replacement command based on the
+// current context, arguments and flags.
 func DeprecatedWithReplacementFunc(fn DeprecatedCommandReplacementFunc) *DeprecatedCommand {
 	return &DeprecatedCommand{
 		replacementFunc: fn,
 	}
 }
 
-// DeprecatedWithoutReplacement creates a DeprecatedCommand that does not have any replacement command.
+// DeprecatedWithoutReplacement creates a [DeprecatedCommand] that does not have any replacement command.
 func DeprecatedWithoutReplacement() *DeprecatedCommand {
 	return &DeprecatedCommand{}
 }

@@ -11,8 +11,9 @@ import (
 func main() {
 	app, _, err := naistrix.NewApplication(
 		"example",
-		"Example application",
+		"Example application with a renamed defaults command",
 		"v0.0.0",
+		naistrix.ApplicationWithDefaultsCommandName("config"),
 	)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "error when creating application: %v\n", err)
@@ -37,7 +38,4 @@ func main() {
 		_, _ = fmt.Fprintf(os.Stderr, "error when running application: %v\n", err)
 		os.Exit(1)
 	}
-
-	// Fetch the applications Output to render some more output outside the application itself
-	_ = app.Output()
 }

@@ -49,6 +49,15 @@ func main() {
 				return nil
 			},
 		},
+		&naistrix.Command{
+			Name:       "removed-command",
+			Title:      "This command has been removed without a replacement",
+			Deprecated: naistrix.DeprecatedWithoutReplacement(),
+			RunFunc: func(_ context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
+				out.Println("this should never run")
+				return nil
+			},
+		},
 	)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "error when adding command: %v\n", err)

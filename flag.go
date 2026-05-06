@@ -36,7 +36,7 @@ type GlobalFlags struct {
 	NoColors bool `name:"no-colors" usage:"Disable colors in the output."`
 
 	// Config is the location of the configuration file.
-	Config string `name:"config" usage:"Specify the location for the configuration file."`
+	Config string `name:"config" usage:"Specify the |path| to the configuration file."`
 }
 
 // IsVerbose checks if the application is running in verbose mode (-v).

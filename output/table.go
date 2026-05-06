@@ -43,6 +43,7 @@ func TableWithMargins() TableOptionFunc {
 	}
 }
 
+// Table is a renderer that writes tabular data to an [io.Writer]. Use [NewTable] to construct one.
 type Table struct {
 	showHidden   bool
 	tablePrinter pterm.TablePrinter

@@ -9,8 +9,10 @@ var supportsHyperlinks = termlink.SupportsHyperlinks
 // It renders as a clickable hyperlink when the terminal supports hyperlinks,
 // and falls back to rendering only the name when hyperlinks are not supported.
 type Link struct {
+	// Name is the display text for the link.
 	Name string
-	URL  string
+	// URL is the target of the link. If empty, only the [Link.Name] is rendered.
+	URL string
 }
 
 // NewLink creates a new [Link].

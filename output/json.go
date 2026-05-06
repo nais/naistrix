@@ -25,12 +25,15 @@ func JSONWithIndentChar(indent string) JSONOptionFunc {
 	}
 }
 
+// JSON is a renderer that encodes values as JSON and writes them to an [io.Writer]. Use [NewJSON] to construct one.
 type JSON struct {
 	prettify   bool
 	indentChar string
 	writer     io.Writer
 }
 
+// NewJSON creates a new [JSON] renderer that will write to the provided [io.Writer]. The renderer can be configured
+// using the optional [JSONOptionFunc] arguments.
 func NewJSON(w io.Writer, opts ...JSONOptionFunc) *JSON {
 	j := &JSON{
 		writer:     w,
@@ -44,6 +47,7 @@ func NewJSON(w io.Writer, opts ...JSONOptionFunc) *JSON {
 	return j
 }
 
+// Render encodes v as JSON and writes the result to the configured [io.Writer].
 func (j *JSON) Render(v any) error {
 	enc := json.NewEncoder(j.writer)
 	if j.prettify {

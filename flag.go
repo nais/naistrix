@@ -14,10 +14,16 @@ import (
 	"github.com/spf13/viper"
 )
 
+// Output verbosity levels, ordered from least to most verbose. The active level is controlled by the
+// [GlobalFlags.VerboseLevel] flag (`-v`, `-vv`, `-vvv`).
 const (
+	// OutputVerbosityLevelNormal is the default verbosity level, where only standard output is shown.
 	OutputVerbosityLevelNormal Count = iota
+	// OutputVerbosityLevelVerbose enables verbose output, including additional informational messages.
 	OutputVerbosityLevelVerbose
+	// OutputVerbosityLevelDebug enables debug output, including detailed diagnostic messages.
 	OutputVerbosityLevelDebug
+	// OutputVerbosityLevelTrace enables trace output, including the most detailed level of diagnostic messages.
 	OutputVerbosityLevelTrace
 )
 

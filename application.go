@@ -335,8 +335,7 @@ func (a *Application) Run(opts ...RunOptionFunc) error {
 			return nil
 		}
 
-		var deprecatedErr *DeprecatedCommandError
-		if errors.As(err, &deprecatedErr) {
+		if deprecatedErr, ok := errors.AsType[*DeprecatedCommandError](err); ok {
 			if len(deprecatedErr.Replacement) > 0 && deprecatedErr.ExecuteReplacement {
 				ro.args = deprecatedErr.Replacement
 				continue

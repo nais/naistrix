@@ -1,7 +1,7 @@
 [tools]
 git-cliff = "2.13.1"
-go = "1.26.2"
-golangci-lint = "2.12.1"
+go = "1.26.3"
+golangci-lint = "2.12.2"
 
 [settings]
 pin = true

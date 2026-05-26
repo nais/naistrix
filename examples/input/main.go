@@ -63,7 +63,7 @@ func main() {
 			Name:  "select",
 			Title: "Prompt the user to select a value from a list.",
 			RunFunc: func(_ context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
-				color, err := input.Select("Select a team", []Team{
+				team, err := input.Select("Select a team", []Team{
 					{Name: "team-1", Members: 4},
 					{Name: "team-2", Members: 7},
 					{Name: "team-3", Members: 3},
@@ -72,7 +72,22 @@ func main() {
 					return fmt.Errorf("unable to get selection: %w", err)
 				}
 
-				out.Println("You picked:", color)
+				out.Println("You picked:", team)
+				return nil
+			},
+		},
+		&naistrix.Command{
+			Name:  "select-single-option",
+			Title: "Prompt the user to select a value from a list.",
+			RunFunc: func(_ context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
+				team, err := input.Select("Select a team", []Team{
+					{Name: "team-1", Members: 4},
+				}, input.SelectWithAutoSelectSingleOption())
+				if err != nil {
+					return fmt.Errorf("unable to get selection: %w", err)
+				}
+
+				out.Println("You picked:", team)
 				return nil
 			},
 		},

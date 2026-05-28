@@ -1,6 +1,3 @@
-// Skip when race detector is enabled: https://github.com/atomicgo/keyboard/issues/6
-//go:build !race
-
 package input_test
 
 import (

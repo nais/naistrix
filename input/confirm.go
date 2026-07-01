@@ -30,6 +30,10 @@ func Confirm(prompt string, opts ...ConfirmOptionFunc) (bool, error) {
 		o(options)
 	}
 
+	if !interactive() {
+		return false, ErrNotInteractive
+	}
+
 	return pterm.DefaultInteractiveConfirm.
 		WithDefaultValue(options.defaultValue).
 		Show(prompt)

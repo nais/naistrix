@@ -2,8 +2,6 @@ package input
 
 import (
 	"fmt"
-	"maps"
-	"slices"
 
 	"github.com/pterm/pterm"
 )
@@ -44,17 +42,23 @@ func Select[T any](prompt string, selection []T, opts ...SelectOptionFunc) (T, e
 		return selection[0], nil
 	}
 
-	labels := make(map[string]struct{})
+	labels := make([]string, 0, len(selection))
+	seen := make(map[string]struct{}, len(selection))
 	for i, o := range selection {
 		lbl := fmt.Sprint(o)
-		if _, exists := labels[lbl]; exists {
+		if _, exists := seen[lbl]; exists {
 			return empty, fmt.Errorf("duplicate label: %s (index %d)", lbl, i)
 		}
-		labels[lbl] = struct{}{}
+		seen[lbl] = struct{}{}
+		labels = append(labels, lbl)
+	}
+
+	if !interactive() {
+		return empty, ErrNotInteractive
 	}
 
 	chosen, err := pterm.DefaultInteractiveSelect.
-		WithOptions(slices.Collect(maps.Keys(labels))).
+		WithOptions(labels).
 		WithFilterInputPlaceholder("[type to filter]").
 		Show(prompt)
 	if err != nil {

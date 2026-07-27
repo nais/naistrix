@@ -39,6 +39,11 @@ func (w *OutputWriter) YAML() *output.YAML {
 	return output.NewYAML(w.writer)
 }
 
+// Config creates a new Config output that can be rendered to the destination.
+func (w *OutputWriter) Config() *output.Config {
+	return output.NewConfig(w.writer)
+}
+
 // Successln writes a line of "successful" output to the destination, appending a newline at the end. Spaces are added
 // between arguments. This outputs in all verbosity levels.
 func (w *OutputWriter) Successln(a ...any) *OutputWriter {

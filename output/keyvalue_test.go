@@ -7,7 +7,7 @@ import (
 	"github.com/nais/naistrix/output"
 )
 
-func TestConfig(t *testing.T) {
+func TestKeyValue(t *testing.T) {
 	tests := []struct {
 		name           string
 		dataToRender   map[string]any
@@ -34,7 +34,7 @@ func TestConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var buf bytes.Buffer
-			c := output.NewConfig(&buf)
+			c := output.NewKeyValue(&buf)
 			err := c.Render(tt.dataToRender)
 
 			if tt.expectedError {

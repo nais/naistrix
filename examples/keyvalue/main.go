@@ -30,7 +30,7 @@ func main() {
 			Name:  "show",
 			Title: "Show settings.",
 			RunFunc: func(_ context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
-				return out.Config().Render(settings)
+				return out.KeyValue().Render(settings)
 			},
 		},
 	)

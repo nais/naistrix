@@ -1,6 +1,6 @@
 module github.com/nais/naistrix
 
-go 1.26.4
+go 1.26.5
 
 tool (
 	github.com/securego/gosec/v2/cmd/gosec
@@ -99,10 +99,10 @@ require (
 	golang.org/x/net v0.56.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/pkgsite v0.2.0 // indirect
-	golang.org/x/sync v0.21.0 // indirect
+	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/sys v0.46.0 // indirect
 	golang.org/x/telemetry v0.0.0-20260625142307-59b4966ccb57 // indirect
-	golang.org/x/text v0.38.0 // indirect
+	golang.org/x/text v0.39.0 // indirect
 	golang.org/x/tools v0.47.0 // indirect
 	golang.org/x/vuln v1.5.0 // indirect
 	google.golang.org/api v0.274.0 // indirect

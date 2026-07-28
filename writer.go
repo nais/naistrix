@@ -39,11 +39,6 @@ func (w *OutputWriter) YAML() *output.YAML {
 	return output.NewYAML(w.writer)
 }
 
-// KeyValue creates a new KeyValue output that can be rendered to the destination.
-func (w *OutputWriter) KeyValue() *output.KeyValue {
-	return output.NewKeyValue(w.writer)
-}
-
 // Successln writes a line of "successful" output to the destination, appending a newline at the end. Spaces are added
 // between arguments. This outputs in all verbosity levels.
 func (w *OutputWriter) Successln(a ...any) *OutputWriter {

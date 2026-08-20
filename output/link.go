@@ -10,9 +10,9 @@ var supportsHyperlinks = termlink.SupportsHyperlinks
 // and falls back to rendering only the name when hyperlinks are not supported.
 type Link struct {
 	// Name is the display text for the link.
-	Name string
+	Name string `json:"name"`
 	// URL is the target of the link. If empty, only the [Link.Name] is rendered.
-	URL string
+	URL string `json:"url"`
 }
 
 // NewLink creates a new [Link].

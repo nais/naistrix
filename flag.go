@@ -57,6 +57,10 @@ func (f GlobalFlags) IsTrace() bool {
 // Count is a type used for flags that when repeated increment a counter.
 type Count int
 
+// StringArray is a repeatable string flag that preserves each argument verbatim,
+// unlike []string flags, which split arguments on commas.
+type StringArray []string
+
 // FlagAutoCompleter is an interface that can be implemented by flag values to provide auto-completion functionality.
 type FlagAutoCompleter interface {
 	// AutoComplete is called to provide auto-completion suggestions for the flag. If there are no suggestions, an empty
@@ -104,6 +108,12 @@ func setupFlag(name, short, usage string, value any, flags *pflag.FlagSet) error
 			flags.StringSliceVar(ptr, name, *ptr, usage)
 		} else {
 			flags.StringSliceVarP(ptr, name, short, *ptr, usage)
+		}
+	case *StringArray:
+		if short == "" {
+			flags.StringArrayVar((*[]string)(ptr), name, *ptr, usage)
+		} else {
+			flags.StringArrayVarP((*[]string)(ptr), name, short, *ptr, usage)
 		}
 	case *int:
 		if short == "" {
@@ -177,9 +187,12 @@ func setupFlags(cmd *cobra.Command, inputArgs []Argument, flags any, flagSet *pf
 			err := cmd.RegisterFlagCompletionFunc(
 				flagName,
 				func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-					// get existing flag values. The call might fail if the flag is not a []string, but in that case we
-					// will just get an empty slice which is fine.
-					existing, _ := cmd.Flags().GetStringSlice(flagName)
+					var existing []string
+					if flag := cmd.Flags().Lookup(flagName); flag != nil {
+						if value, ok := flag.Value.(pflag.SliceValue); ok {
+							existing = value.GetSlice()
+						}
+					}
 					completions, activeHelp := v.AutoComplete(cmd.Context(), newArguments(inputArgs, args), toComplete, flags)
 
 					filtered := make([]string, 0)
@@ -219,6 +232,9 @@ func setupFlags(cmd *cobra.Command, inputArgs []Argument, flags any, flagSet *pf
 // *MyStringType => *string
 // *[]MyStringType => *[]string
 func unwrap(value any) any {
+	if _, ok := value.(*StringArray); ok {
+		return value
+	}
 	v := reflect.ValueOf(value)
 
 	switch v.Elem().Kind() {
@@ -261,7 +277,7 @@ func validateFlags(flags any) error {
 // syncViperToFlags syncs values from Viper back to the flags struct.
 // This ensures that values from config files and environment variables
 // are reflected in the flags struct, not just CLI flag values.
-func syncViperToFlags(flags any, config *viper.Viper) error {
+func syncViperToFlags(flags any, config *viper.Viper, parsedFlags *pflag.FlagSet) error {
 	if flags == nil {
 		return nil
 	}
@@ -287,6 +303,13 @@ func syncViperToFlags(flags any, config *viper.Viper) error {
 		}
 
 		flagName := getFlagName(field)
+		if value.Type() == reflect.TypeFor[StringArray]() {
+			if flag := parsedFlags.Lookup(flagName); flag != nil && flag.Changed {
+				// Viper's CSV round-trip drops a single empty argument.
+				// StringArray values are already populated by pflag.
+				continue
+			}
+		}
 		if !config.IsSet(flagName) {
 			continue
 		}

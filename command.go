@@ -347,13 +347,13 @@ func (c *Command) init(cmd string, out *OutputWriter, usageTemplate string, conf
 		ValidArgsFunction: c.autocomplete(),
 		PersistentPreRunE: func(co *cobra.Command, args []string) error {
 			if c.Flags != nil {
-				if err := syncViperToFlags(c.Flags, config); err != nil {
+				if err := syncViperToFlags(c.Flags, config, co.Flags()); err != nil {
 					return fmt.Errorf("failed to sync command flags: %w", err)
 				}
 			}
 
 			if c.StickyFlags != nil {
-				if err := syncViperToFlags(c.StickyFlags, config); err != nil {
+				if err := syncViperToFlags(c.StickyFlags, config, co.Flags()); err != nil {
 					return fmt.Errorf("failed to sync sticky flags: %w", err)
 				}
 			}

@@ -174,12 +174,12 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 				return fmt.Errorf("failed to initialize configuration: %w", err)
 			}
 
-			if err := syncViperToFlags(app.flags, app.config); err != nil {
+			if err := syncViperToFlags(app.flags, app.config, cmd.Flags()); err != nil {
 				return fmt.Errorf("failed to sync sticky flags: %w", err)
 			}
 
 			for _, f := range app.additionalGlobalFlags {
-				if err := syncViperToFlags(f, app.config); err != nil {
+				if err := syncViperToFlags(f, app.config, cmd.Flags()); err != nil {
 					return fmt.Errorf("failed to sync additional sticky flags: %w", err)
 				}
 			}

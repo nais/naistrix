@@ -9,7 +9,8 @@ The most common types for flags are supported, including, but not limited to:
 - `bool`: A boolean flag, can be set to true or false. If only the flag name is provided, it will be set to true. If the flag is not provided by the end user, the value will be set to true. If the default value is true, the end user must set the flag to `false` when running the command.
 - `int`: An integer flag, can be set to any integer value.
 - `string`: A string flag, can be set to any string value.
-- `[]string`: A slice of strings, can be set to multiple values.
+- `[]string`: A slice of strings, accepts comma-separated values and repeated flags.
+- `naistrix.StringArray`: A slice of strings that preserves each flag argument without splitting on commas. Repeat the flag to provide multiple values, e.g. `--set 'spec.env=[{name: LOG_LEVEL, value: debug}]' --set 'spec.image=my-image'`.
 - `time.Duration`: A duration flag, can be set to a duration string (e.g., `1h`, `30m`).
 - `naistrix.Count`: A flag that can be repeated to increase a counter. Useful for a "verbose" flag for instance, where `-v` is `1`, `-vv` is `2` and so forth.
 

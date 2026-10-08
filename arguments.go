@@ -4,6 +4,9 @@ package naistrix
 type Arguments struct {
 	// args holds the command arguments provided by the user.
 	args []*userArg
+
+	// count includes the total amount of user supplied arguments.
+	count int
 }
 
 type userArg struct {
@@ -36,13 +39,14 @@ func newArguments(commandArgs []Argument, userArgs []string) *Arguments {
 	}
 
 	return &Arguments{
-		args: a,
+		args:  a,
+		count: len(userArgs),
 	}
 }
 
-// Len returns the number of arguments.
+// Len returns the number of supplied positional values, including all values for repeatable arguments.
 func (a *Arguments) Len() int {
-	return len(a.args)
+	return a.count
 }
 
 // All returns the command arguments as a slice of strings.
@@ -51,9 +55,9 @@ func (a *Arguments) All() []string {
 	for _, arg := range a.args {
 		if arg.repeatable {
 			return append(ret, arg.value.([]string)...)
-		} else {
-			ret = append(ret, arg.value.(string))
 		}
+
+		ret = append(ret, arg.value.(string))
 	}
 	return ret
 }

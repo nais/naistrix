@@ -44,6 +44,37 @@ func TestInput_All(t *testing.T) {
 	})
 }
 
+func TestArgumentsLen(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		defined []Argument
+		values  []string
+	}{
+		{name: "no values"},
+		{name: "missing value", defined: []Argument{{Name: "first"}, {Name: "second"}}, values: []string{"one"}},
+		{name: "extra value", defined: []Argument{{Name: "first"}}, values: []string{"one", "two"}},
+		{name: "repeatable values", defined: []Argument{{Name: "first"}, {Name: "rest", Repeatable: true}}, values: []string{"one", "two", "three"}},
+		{name: "only repeatable values", defined: []Argument{{Name: "values", Repeatable: true}}, values: []string{"one", "two"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			args := newArguments(tt.defined, tt.values)
+			if got, want := args.Len(), len(tt.values); got != want {
+				t.Errorf("Len() = %d, want %d", got, want)
+			}
+			if err := ValidateExactArgs(len(tt.values))(t.Context(), args); err != nil {
+				t.Errorf("exact count validation failed: %v", err)
+			}
+		})
+	}
+
+	t.Run("extra values fail exact validation", func(t *testing.T) {
+		args := newArguments([]Argument{{Name: "first"}}, []string{"one", "two"})
+		if err := ValidateExactArgs(1)(t.Context(), args); err == nil {
+			t.Error("expected extra values to fail exact count validation")
+		}
+	})
+}
+
 func TestInput_Get(t *testing.T) {
 	cobraArgs := []string{"v1", "v2", "v3", "v4"}
 	args := newArguments(

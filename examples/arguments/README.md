@@ -16,15 +16,20 @@ Set `Choices` to present a selectable list instead of a free-form text prompt:
 
 ```go
 naistrix.Argument{
-    Name:    "func",
-    Prompt:  "How should the words be transformed?",
-    Choices: []string{"upper", "lower"},
+    Name:                   "func",
+    Prompt:                 "How should the words be transformed?",
+    Choices:                []string{"upper", "lower"},
+    ChoicesCaseInsensitive: true,
 }
 ```
 
 The user can select with the arrow keys and confirm with Enter, or type to filter the list.
 
 Values supplied on the command line are also validated against `Choices`, even without a `Prompt`.
+
+Matching is case-sensitive by default. Set `ChoicesCaseInsensitive` to accept different casing and normalize values to the spelling in `Choices` before custom validation and command execution. For example, `go run . transform UPPER hello` behaves like `go run . transform upper hello`.
+
+This applies to every value of a repeatable argument too. Whitespace is not trimmed, and choices that differ only in case cannot be configured together when case-insensitive matching is enabled. With no `Choices`, the option has no effect.
 
 ## Repeatable arguments
 

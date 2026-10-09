@@ -51,6 +51,11 @@ type Argument struct {
 	// Choices lists the valid values for this argument. If empty, any value is allowed. When prompting, these values
 	// are presented as a selectable list instead of a text prompt.
 	Choices []string
+
+	// ChoicesCaseInsensitive accepts Choices regardless of case, using Unicode case folding. Accepted values are
+	// normalized to the configured choice before ValidateFunc and RunFunc receive them. Choices must be distinct under
+	// case-insensitive matching. This option has no effect when Choices is empty.
+	ChoicesCaseInsensitive bool
 }
 
 // Command represents a command in the CLI application.
@@ -251,8 +256,10 @@ func (c *Command) validateArgs() error {
 			return fmt.Errorf("argument name (%+v) cannot be empty", arg)
 		}
 		for j, choice := range arg.Choices {
-			if slices.Contains(arg.Choices[:j], choice) {
-				return fmt.Errorf("argument %q contains duplicate choices: %q", arg.Name, choice)
+			for _, previous := range arg.Choices[:j] {
+				if previous == choice || arg.ChoicesCaseInsensitive && strings.EqualFold(previous, choice) {
+					return fmt.Errorf("argument %q contains duplicate choices: %q", arg.Name, choice)
+				}
 			}
 		}
 

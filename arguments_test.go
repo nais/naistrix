@@ -44,6 +44,21 @@ func TestInput_All(t *testing.T) {
 	})
 }
 
+func TestArgumentsChoiceNormalizationPreservesInput(t *testing.T) {
+	values := []string{"FOO", "bar", "baz", "unknown"}
+	definitions := []Argument{
+		{Name: "action", Choices: []string{"Foo"}, ChoicesCaseInsensitive: true},
+		{Name: "values", Repeatable: true, Choices: []string{"Bar", "BAZ"}, ChoicesCaseInsensitive: true},
+	}
+	args := newArguments(definitions, values)
+	if got, want := args.All(), []string{"Foo", "Bar", "BAZ", "unknown"}; !slices.Equal(got, want) {
+		t.Errorf("All() = %v, want %v", got, want)
+	}
+	if want := []string{"FOO", "bar", "baz", "unknown"}; !slices.Equal(values, want) {
+		t.Errorf("input values changed to %v, want %v", values, want)
+	}
+}
+
 func TestArgumentsLen(t *testing.T) {
 	for _, tt := range []struct {
 		name    string

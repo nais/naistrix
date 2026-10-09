@@ -9,6 +9,9 @@ import (
 )
 
 func TestInput_ReturnsValue(t *testing.T) {
+	restore := input.SetInteractive(func() bool { return true })
+	defer restore()
+
 	go func() {
 		_ = keyboard.SimulateKeyPress("hi")
 		_ = keyboard.SimulateKeyPress(keys.Enter)
@@ -22,6 +25,9 @@ func TestInput_ReturnsValue(t *testing.T) {
 }
 
 func TestInput_DefaultValueOnEnter(t *testing.T) {
+	restore := input.SetInteractive(func() bool { return true })
+	defer restore()
+
 	go func() {
 		_ = keyboard.SimulateKeyPress(keys.Enter)
 	}()

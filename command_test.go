@@ -172,6 +172,20 @@ func TestCommandArgumentValidation(t *testing.T) {
 			},
 			errorContains: "must be the last argument",
 		},
+		{
+			name: "duplicate choices",
+			args: []naistrix.Argument{
+				{Name: "arg", Choices: []string{"foo", "foo"}},
+			},
+			errorContains: "duplicate choices",
+		},
+		{
+			name: "duplicate empty choices",
+			args: []naistrix.Argument{
+				{Name: "arg", Choices: []string{"", ""}},
+			},
+			errorContains: "duplicate choices",
+		},
 	}
 
 	for _, tt := range tests {

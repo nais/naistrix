@@ -4,12 +4,34 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/nais/naistrix/input"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+)
+
+const (
+	// defaultArgumentPrompt is the text question used when an argument has no custom Prompt or Choices.
+	defaultArgumentPrompt = "Enter a value"
+
+	// defaultArgumentSelectPrompt is the selection question used when an argument has Choices but no custom Prompt.
+	defaultArgumentSelectPrompt = "Select a value"
+
+	// repeatableArgumentPrompt is the text question used after collecting the first value of a repeatable argument.
+	repeatableArgumentPrompt = "Enter another value, or press Enter to finish"
+
+	// repeatableArgumentConfirm is the confirmation format used after each repeatable choice; %s is the argument name.
+	repeatableArgumentConfirm = "Add another %s?"
+)
+
+var (
+	promptArgument       = input.Input
+	selectArgument       = input.Select[string]
+	confirmArgument      = input.Confirm
+	argumentsInteractive = input.IsInteractive
 )
 
 // Argument represents a positional argument for a command. All arguments for a command will be grouped together in a
@@ -21,6 +43,14 @@ type Argument struct {
 
 	// Repeatable can be used for repeatable arguments. Only the last argument for a command can be repeatable.
 	Repeatable bool
+
+	// Prompt overrides the default question shown when this argument is missing in an interactive terminal. The prompt
+	// will be prefixed argument position and uppercase name, as in "#1 NAME:".
+	Prompt string
+
+	// Choices lists the valid values for this argument. If empty, any value is allowed. When prompting, these values
+	// are presented as a selectable list instead of a text prompt.
+	Choices []string
 }
 
 // Command represents a command in the CLI application.
@@ -80,6 +110,9 @@ type Command struct {
 	// command will be validated when executed to ensure that the correct amount of arguments is specified.
 	Args []Argument
 
+	// DisableArgumentPrompts prevents interactive prompting for missing arguments to this command.
+	DisableArgumentPrompts bool
+
 	// Flags sets up flags for the command.
 	Flags any
 
@@ -114,6 +147,61 @@ type Example struct {
 // The [Arguments] parameter holds the arguments specified by the user, and all output should be generated using the
 // [OutputWriter].
 type RunFunc func(ctx context.Context, args *Arguments, out *OutputWriter) error
+
+// promptValues collects one or more values for a missing argument at the given 1-based position.
+func (a Argument) promptValues(ctx context.Context, out *OutputWriter, position int) ([]string, error) {
+	name := strings.ToUpper(a.Name)
+	question := a.Prompt
+	if question == "" {
+		question = defaultArgumentPrompt
+		if len(a.Choices) > 0 {
+			question = defaultArgumentSelectPrompt
+		}
+	}
+	prefix := fmt.Sprintf("#%d %s: ", position, name)
+	prompt := prefix + question
+	var values []string
+	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		var value string
+		var err error
+		if len(a.Choices) > 0 {
+			value, err = selectArgument(prompt, a.Choices)
+		} else {
+			value, err = promptArgument(prompt)
+		}
+		if err != nil {
+			return nil, err
+		}
+		if len(a.Choices) == 0 && strings.TrimSpace(value) == "" {
+			if len(values) > 0 {
+				return values, nil
+			}
+			out.Warnln("A value is required. Please try again.")
+			continue
+		}
+		values = append(values, value)
+		if !a.Repeatable {
+			return values, nil
+		}
+		if len(a.Choices) > 0 {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			more, err := confirmArgument(fmt.Sprintf(repeatableArgumentConfirm, name))
+			if err != nil {
+				return nil, err
+			}
+			if !more {
+				return values, nil
+			}
+		} else {
+			prompt = prefix + repeatableArgumentPrompt
+		}
+	}
+}
 
 // cobraExample generates a formatted string of examples suitable for the underlying cobra.Command.
 func (c *Command) cobraExample(prefix string) (string, error) {
@@ -162,6 +250,11 @@ func (c *Command) validateArgs() error {
 		if arg.Name == "" {
 			return fmt.Errorf("argument name (%+v) cannot be empty", arg)
 		}
+		for j, choice := range arg.Choices {
+			if slices.Contains(arg.Choices[:j], choice) {
+				return fmt.Errorf("argument %q contains duplicate choices: %q", arg.Name, choice)
+			}
+		}
 
 		if arg.Repeatable {
 			hasRepeatable = true
@@ -184,6 +277,22 @@ func (c *Command) validateArgs() error {
 		c.ValidateFunc = func(ctx context.Context, args *Arguments) error {
 			if err := validationFunc(ctx, args); err != nil {
 				return err
+			}
+			for _, arg := range c.Args {
+				if len(arg.Choices) == 0 {
+					continue
+				}
+				var values []string
+				if arg.Repeatable {
+					values = args.GetRepeatable(arg.Name)
+				} else {
+					values = []string{args.Get(arg.Name)}
+				}
+				for _, value := range values {
+					if !slices.Contains(arg.Choices, value) {
+						return Errorf("invalid value %q for argument %q: expected one of %s", value, arg.Name, strings.Join(arg.Choices, ", "))
+					}
+				}
 			}
 
 			if existingValidateFunc == nil {
@@ -285,10 +394,39 @@ func (c *Command) cobraRun(out *OutputWriter) func(*cobra.Command, []string) err
 	}
 
 	return func(cmd *cobra.Command, args []string) error {
+		if len(args) < len(c.Args) && !c.DisableArgumentPrompts && argumentsInteractive() {
+			// Prompt the user for missing args
+			for i := len(args); i < len(c.Args); i++ {
+				values, err := c.Args[i].promptValues(cmd.Context(), out, i+1)
+				if err != nil {
+					return fmt.Errorf("failed to prompt for argument %q: %w", c.Args[i].Name, err)
+				}
+				args = append(args, values...)
+			}
+		}
+
+		if err := c.validateInput(cmd, args); err != nil {
+			return err
+		}
+
 		// Silence the usage for errors that might occur in the RunFunc of the command
 		cmd.SilenceUsage = true
 		return c.RunFunc(cmd.Context(), newArguments(c.Args, args), out)
 	}
+}
+
+// validateInput runs argument count validation followed by the command's custom validation.
+func (c *Command) validateInput(cmd *cobra.Command, args []string) error {
+	if c.ValidateFunc == nil {
+		return nil
+	}
+	if err := c.ValidateFunc(cmd.Context(), newArguments(c.Args, args)); err != nil {
+		if e, ok := errors.AsType[Error](err); ok {
+			return e
+		}
+		return Errorf("input validation failed: %v", err)
+	}
+	return nil
 }
 
 // validate checks that the command is valid.
@@ -358,15 +496,10 @@ func (c *Command) init(cmd string, out *OutputWriter, usageTemplate string, conf
 				}
 			}
 
-			if c.ValidateFunc == nil {
-				return nil
-			}
-
-			if err := c.ValidateFunc(co.Context(), newArguments(c.Args, args)); err != nil {
-				if e, ok := errors.AsType[Error](err); ok {
-					return e
-				}
-				return Errorf("input validation failed: %v", err)
+			// Keep parent validation in the persistent hook so it also runs when a child command is executed.
+			// Leaf commands validate in cobraRun after prompting for missing arguments and before RunFunc.
+			if len(c.SubCommands) > 0 {
+				return c.validateInput(co, args)
 			}
 			return nil
 		},

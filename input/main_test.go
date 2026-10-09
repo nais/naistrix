@@ -2,20 +2,10 @@ package input_test
 
 import (
 	"errors"
-	"os"
 	"testing"
 
 	"github.com/nais/naistrix/input"
 )
-
-// TestMain forces interactivity on for the simulated-keyboard tests in this package, which do not run against a real
-// terminal.
-func TestMain(m *testing.M) {
-	restore := input.SetInteractive(func() bool { return true })
-	code := m.Run()
-	restore()
-	os.Exit(code)
-}
 
 func TestPrompts_NotInteractive(t *testing.T) {
 	restore := input.SetInteractive(func() bool { return false })
@@ -29,6 +19,27 @@ func TestPrompts_NotInteractive(t *testing.T) {
 	}
 	if _, err := input.Select("prompt", []string{"alpha", "beta"}); !errors.Is(err, input.ErrNotInteractive) {
 		t.Errorf("Select: expected ErrNotInteractive, got %v", err)
+	}
+}
+
+func TestIsInteractive(t *testing.T) {
+	tests := []struct {
+		name string
+		want bool
+	}{
+		{name: "non-interactive", want: false},
+		{name: "interactive", want: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			restore := input.SetInteractive(func() bool { return tt.want })
+			defer restore()
+
+			if got := input.IsInteractive(); got != tt.want {
+				t.Errorf("IsInteractive() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 

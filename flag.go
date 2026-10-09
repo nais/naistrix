@@ -86,55 +86,22 @@ func setupFlag(name, short, usage string, value any, flags *pflag.FlagSet) error
 
 	switch ptr := value.(type) {
 	case *string:
-		if short == "" {
-			flags.StringVar(ptr, name, *ptr, usage)
-		} else {
-			flags.StringVarP(ptr, name, short, *ptr, usage)
-		}
+		flags.StringVarP(ptr, name, short, *ptr, usage)
 	case *bool:
-		if short == "" {
-			flags.BoolVar(ptr, name, *ptr, usage)
-		} else {
-			flags.BoolVarP(ptr, name, short, *ptr, usage)
-		}
+		flags.BoolVarP(ptr, name, short, *ptr, usage)
 	case *uint:
-		if short == "" {
-			flags.UintVar(ptr, name, *ptr, usage)
-		} else {
-			flags.UintVarP(ptr, name, short, *ptr, usage)
-		}
+		flags.UintVarP(ptr, name, short, *ptr, usage)
 	case *[]string:
-		if short == "" {
-			flags.StringSliceVar(ptr, name, *ptr, usage)
-		} else {
-			flags.StringSliceVarP(ptr, name, short, *ptr, usage)
-		}
+		flags.StringSliceVarP(ptr, name, short, *ptr, usage)
 	case *StringArray:
-		if short == "" {
-			flags.StringArrayVar((*[]string)(ptr), name, *ptr, usage)
-		} else {
-			flags.StringArrayVarP((*[]string)(ptr), name, short, *ptr, usage)
-		}
+		flags.StringArrayVarP((*[]string)(ptr), name, short, *ptr, usage)
 	case *int:
-		if short == "" {
-			flags.IntVar(ptr, name, *ptr, usage)
-		} else {
-			flags.IntVarP(ptr, name, short, *ptr, usage)
-		}
+		flags.IntVarP(ptr, name, short, *ptr, usage)
 	case *time.Duration:
-		if short == "" {
-			flags.DurationVar(ptr, name, *ptr, usage)
-		} else {
-			flags.DurationVarP(ptr, name, short, *ptr, usage)
-		}
+		flags.DurationVarP(ptr, name, short, *ptr, usage)
 	case *Count:
 		intPtr := (*int)(ptr)
-
-		if short == "" {
-			flags.CountVar(intPtr, name, usage)
-		} else {
-			flags.CountVarP(intPtr, name, short, usage)
-		}
+		flags.CountVarP(intPtr, name, short, usage)
 	default:
 		return fmt.Errorf("unknown flag type: %T", value)
 	}

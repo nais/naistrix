@@ -10,6 +10,9 @@ import (
 )
 
 func TestSelect_ReturnsSelectedOption(t *testing.T) {
+	restore := input.SetInteractive(func() bool { return true })
+	defer restore()
+
 	go func() {
 		_ = keyboard.SimulateKeyPress(keys.Enter)
 	}()

@@ -17,3 +17,8 @@ var ErrNotInteractive = errors.New("no interactive terminal available")
 var interactive = func() bool {
 	return term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd())) // #nosec G115
 }
+
+// IsInteractive reports whether standard input and standard output are both terminals.
+func IsInteractive() bool {
+	return interactive()
+}

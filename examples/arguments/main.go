@@ -24,16 +24,8 @@ func main() {
 		Name:  "transform",
 		Title: "Transform all the words",
 		Args: []naistrix.Argument{
-			{Name: "func"},
-			{Name: "word", Repeatable: true},
-		},
-		ValidateFunc: func(ctx context.Context, args *naistrix.Arguments) error {
-			switch cb := args.Get("func"); cb {
-			case "upper", "lower":
-				return nil
-			default:
-				return naistrix.Errorf(`only "upper" or "lower" is allowed for the "func" argument, got: %q`, cb)
-			}
+			{Name: "func", Prompt: "How should the words be transformed?", Choices: []string{"upper", "lower"}},
+			{Name: "word", Repeatable: true, Prompt: "Enter a word to transform"},
 		},
 		RunFunc: func(ctx context.Context, args *naistrix.Arguments, out *naistrix.OutputWriter) error {
 			var t func(string) string

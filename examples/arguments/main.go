@@ -24,7 +24,7 @@ func main() {
 		Name:  "transform",
 		Title: "Transform all the words",
 		Args: []naistrix.Argument{
-			{Name: "func", Prompt: "How should the words be transformed?", Choices: []string{"upper", "lower"}},
+			{Name: "func", Prompt: "How should the words be transformed?", Choices: []string{"upper", "lower"}, ChoicesCaseInsensitive: true},
 			{Name: "word", Repeatable: true, Prompt: "Enter a word to transform"},
 		},
 		RunFunc: func(ctx context.Context, args *naistrix.Arguments, out *naistrix.OutputWriter) error {

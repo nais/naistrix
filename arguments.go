@@ -1,5 +1,10 @@
 package naistrix
 
+import (
+	"slices"
+	"strings"
+)
+
 // Arguments represents the arguments sent to a command.
 type Arguments struct {
 	// args holds the command arguments provided by the user.
@@ -26,9 +31,16 @@ func newArguments(commandArgs []Argument, userArgs []string) *Arguments {
 
 		var v any
 		if commandArg.Repeatable {
-			v = userArgs[i:]
+			values := userArgs[i:]
+			if commandArg.ChoicesCaseInsensitive && len(commandArg.Choices) > 0 {
+				values = slices.Clone(values)
+				for j, value := range values {
+					values[j] = commandArg.normalizeChoice(value)
+				}
+			}
+			v = values
 		} else {
-			v = userArgs[i]
+			v = commandArg.normalizeChoice(userArgs[i])
 		}
 
 		a = append(a, &userArg{
@@ -42,6 +54,20 @@ func newArguments(commandArgs []Argument, userArgs []string) *Arguments {
 		args:  a,
 		count: len(userArgs),
 	}
+}
+
+// normalizeChoice returns the configured spelling for a case-insensitive choice, preserving unmatched input for validation.
+func (a Argument) normalizeChoice(value string) string {
+	if !a.ChoicesCaseInsensitive {
+		return value
+	}
+
+	for _, choice := range a.Choices {
+		if strings.EqualFold(choice, value) {
+			return choice
+		}
+	}
+	return value
 }
 
 // Len returns the number of supplied positional values, including all values for repeatable arguments.

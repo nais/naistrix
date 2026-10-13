@@ -11,3 +11,11 @@ func SetChoicePromptForTest(selectChoice func(string, []string, ...input.SelectO
 		selectArgument, argumentsInteractive = previousSelect, previousInteractive
 	}
 }
+
+// SetArgumentConfirmationForTest replaces repeatable argument confirmation for external tests only.
+// Tests must restore the hook and must not run in parallel.
+func SetArgumentConfirmationForTest(confirm func(string, ...input.ConfirmOptionFunc) (bool, error)) func() {
+	previous := confirmArgument
+	confirmArgument = confirm
+	return func() { confirmArgument = previous }
+}

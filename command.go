@@ -49,14 +49,24 @@ type Argument struct {
 	Prompt string
 
 	// Choices lists the valid values for this argument. If empty, any value is allowed. When prompting, these values
-	// are presented as a selectable list instead of a text prompt.
+	// are presented as a selectable list instead of a text prompt. Mutually exclusive with ChoicesFunc.
 	Choices []string
+
+	// ChoicesFunc resolves allowed values at execution time, after flags are synchronized. Its args contain only
+	// earlier positional arguments, already validated and normalized. The function is called at most once per argument
+	// per execution, including for values supplied on the command line. An empty result means no valid choices.
+	// Choices and ChoicesFunc are mutually exclusive.
+	ChoicesFunc ArgumentChoicesFunc
 
 	// ChoicesCaseInsensitive accepts Choices regardless of case, using Unicode case folding. Accepted values are
 	// normalized to the configured choice before ValidateFunc and RunFunc receive them. Choices must be distinct under
-	// case-insensitive matching. This option has no effect when Choices is empty.
+	// case-insensitive matching. This also applies to ChoicesFunc results and has no effect without either source.
 	ChoicesCaseInsensitive bool
 }
+
+// ArgumentChoicesFunc resolves allowed values for an argument using the command context and earlier resolved arguments.
+// Returned values are used for both interactive selection and validation.
+type ArgumentChoicesFunc func(ctx context.Context, args *Arguments) ([]string, error)
 
 // Command represents a command in the CLI application.
 type Command struct {
@@ -255,12 +265,11 @@ func (c *Command) validateArgs() error {
 		if arg.Name == "" {
 			return fmt.Errorf("argument name (%+v) cannot be empty", arg)
 		}
-		for j, choice := range arg.Choices {
-			for _, previous := range arg.Choices[:j] {
-				if previous == choice || arg.ChoicesCaseInsensitive && strings.EqualFold(previous, choice) {
-					return fmt.Errorf("argument %q contains duplicate choices: %q", arg.Name, choice)
-				}
-			}
+		if arg.ChoicesFunc != nil && arg.Choices != nil {
+			return fmt.Errorf("argument %q cannot have both Choices and ChoicesFunc", arg.Name)
+		}
+		if err := arg.validateChoices(); err != nil {
+			return err
 		}
 
 		if arg.Repeatable {
@@ -401,33 +410,28 @@ func (c *Command) cobraRun(out *OutputWriter) func(*cobra.Command, []string) err
 	}
 
 	return func(cmd *cobra.Command, args []string) error {
-		if len(args) < len(c.Args) && !c.DisableArgumentPrompts && argumentsInteractive() {
-			// Prompt the user for missing args
-			for i := len(args); i < len(c.Args); i++ {
-				values, err := c.Args[i].promptValues(cmd.Context(), out, i+1)
-				if err != nil {
-					return fmt.Errorf("failed to prompt for argument %q: %w", c.Args[i].Name, err)
-				}
-				args = append(args, values...)
-			}
+		prompt := len(args) < len(c.Args) && !c.DisableArgumentPrompts && argumentsInteractive()
+		resolved, err := c.resolveArguments(cmd.Context(), args, out, prompt)
+		if err != nil {
+			return err
 		}
 
-		if err := c.validateInput(cmd, args); err != nil {
+		if err := c.validateInput(cmd, resolved); err != nil {
 			return err
 		}
 
 		// Silence the usage for errors that might occur in the RunFunc of the command
 		cmd.SilenceUsage = true
-		return c.RunFunc(cmd.Context(), newArguments(c.Args, args), out)
+		return c.RunFunc(cmd.Context(), resolved, out)
 	}
 }
 
 // validateInput runs argument count validation followed by the command's custom validation.
-func (c *Command) validateInput(cmd *cobra.Command, args []string) error {
+func (c *Command) validateInput(cmd *cobra.Command, args *Arguments) error {
 	if c.ValidateFunc == nil {
 		return nil
 	}
-	if err := c.ValidateFunc(cmd.Context(), newArguments(c.Args, args)); err != nil {
+	if err := c.ValidateFunc(cmd.Context(), args); err != nil {
 		if e, ok := errors.AsType[Error](err); ok {
 			return e
 		}
@@ -506,7 +510,11 @@ func (c *Command) init(cmd string, out *OutputWriter, usageTemplate string, conf
 			// Keep parent validation in the persistent hook so it also runs when a child command is executed.
 			// Leaf commands validate in cobraRun after prompting for missing arguments and before RunFunc.
 			if len(c.SubCommands) > 0 {
-				return c.validateInput(co, args)
+				resolved, err := c.resolveArguments(co.Context(), args, out, false)
+				if err != nil {
+					return err
+				}
+				return c.validateInput(co, resolved)
 			}
 			return nil
 		},

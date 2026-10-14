@@ -11,6 +11,8 @@ import (
 func TestConfirm_Yes(t *testing.T) {
 	restore := input.SetInteractive(func() bool { return true })
 	defer restore()
+	restoreOutput := input.DiscardPromptOutputForTest(t)
+	defer restoreOutput()
 
 	go func() {
 		_ = keyboard.SimulateKeyPress('y')
@@ -26,6 +28,8 @@ func TestConfirm_Yes(t *testing.T) {
 func TestConfirm_No(t *testing.T) {
 	restore := input.SetInteractive(func() bool { return true })
 	defer restore()
+	restoreOutput := input.DiscardPromptOutputForTest(t)
+	defer restoreOutput()
 
 	go func() {
 		_ = keyboard.SimulateKeyPress('n')
@@ -41,6 +45,8 @@ func TestConfirm_No(t *testing.T) {
 func TestConfirm_DefaultIsNo(t *testing.T) {
 	restore := input.SetInteractive(func() bool { return true })
 	defer restore()
+	restoreOutput := input.DiscardPromptOutputForTest(t)
+	defer restoreOutput()
 
 	go func() {
 		_ = keyboard.SimulateKeyPress(keys.Enter)
@@ -56,6 +62,8 @@ func TestConfirm_DefaultIsNo(t *testing.T) {
 func TestConfirm_OverrideDefault(t *testing.T) {
 	restore := input.SetInteractive(func() bool { return true })
 	defer restore()
+	restoreOutput := input.DiscardPromptOutputForTest(t)
+	defer restoreOutput()
 
 	go func() {
 		_ = keyboard.SimulateKeyPress(keys.Enter)

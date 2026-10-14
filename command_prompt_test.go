@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"reflect"
 	"strings"
 	"testing"
@@ -82,7 +83,7 @@ func TestCommandPromptErrorAfterBlankAnswer(t *testing.T) {
 		}
 		return "", wantError
 	}
-	app, _, err := NewApplication("app", "title", "v0.0.0")
+	app, _, err := NewApplication("app", "title", "v0.0.0", ApplicationWithWriter(io.Discard))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +116,7 @@ func TestCommandPromptsForMissingArguments(t *testing.T) {
 		{name: "all provided", provided: []string{"first", "second", "third"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			app, _, err := NewApplication("app", "title", "v0.0.0")
+			app, _, err := NewApplication("app", "title", "v0.0.0", ApplicationWithWriter(io.Discard))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -183,7 +184,7 @@ func TestCommandDefaultArgumentPrompts(t *testing.T) {
 				questions, answers = questions[1:], answers[1:]
 				return answer, nil
 			}
-			app, _, err := NewApplication("app", "title", "v0.0.0")
+			app, _, err := NewApplication("app", "title", "v0.0.0", ApplicationWithWriter(io.Discard))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -241,7 +242,7 @@ func TestCommandMissingArgumentsWithoutTerminal(t *testing.T) {
 		{name: "provided repeatable values need no terminal", args: []Argument{{Name: "one", Prompt: "First?", Repeatable: true}}, provided: []string{"first", "second"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			app, _, err := NewApplication("app", "title", "v0.0.0")
+			app, _, err := NewApplication("app", "title", "v0.0.0", ApplicationWithWriter(io.Discard))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -298,7 +299,7 @@ func TestRepeatableChoiceCollection(t *testing.T) {
 				}
 				return confirmations == 1, nil
 			}
-			app, _, err := NewApplication("app", "title", "v0.0.0")
+			app, _, err := NewApplication("app", "title", "v0.0.0", ApplicationWithWriter(io.Discard))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -346,7 +347,7 @@ func TestRepeatableTextCollectionError(t *testing.T) {
 
 func TestCommandCollectsRepeatableArguments(t *testing.T) {
 	enableArgumentPrompts(t)
-	app, _, err := NewApplication("app", "title", "v0.0.0")
+	app, _, err := NewApplication("app", "title", "v0.0.0", ApplicationWithWriter(io.Discard))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -390,7 +391,7 @@ func TestCommandValidatesPromptedArguments(t *testing.T) {
 	defer func() { promptArgument = previousPrompt }()
 	promptArgument = func(string) (string, error) { return "invalid", nil }
 
-	app, _, err := NewApplication("app", "title", "v0.0.0")
+	app, _, err := NewApplication("app", "title", "v0.0.0", ApplicationWithWriter(io.Discard))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -470,7 +471,7 @@ func TestCommandArgumentChoices(t *testing.T) {
 				}
 				return "bar", tt.selectErr
 			}
-			app, _, err := NewApplication("app", "title", "v0.0.0")
+			app, _, err := NewApplication("app", "title", "v0.0.0", ApplicationWithWriter(io.Discard))
 			if err != nil {
 				t.Fatal(err)
 			}

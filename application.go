@@ -170,18 +170,12 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 		SilenceErrors:      true,
 		DisableSuggestions: true,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
-			if err := app.initializeConfig(cmd.Flags()); err != nil {
-				return fmt.Errorf("failed to initialize configuration: %w", err)
+			out := app.output
+			if cmd.Name() == cobra.ShellCompRequestCmd {
+				out = NewOutputWriter(io.Discard, &app.flags.VerboseLevel)
 			}
-
-			if err := syncViperToFlags(app.flags, app.config, cmd.Flags()); err != nil {
-				return fmt.Errorf("failed to sync sticky flags: %w", err)
-			}
-
-			for _, f := range app.additionalGlobalFlags {
-				if err := syncViperToFlags(f, app.config, cmd.Flags()); err != nil {
-					return fmt.Errorf("failed to sync additional sticky flags: %w", err)
-				}
+			if err := app.syncConfigAndFlags(cmd.Flags(), out); err != nil {
+				return err
 			}
 
 			// Disable styling if NoColors flag is set or if stdout is not a TTY
@@ -237,7 +231,7 @@ func (a *Application) AddCommand(cmd *Command, cmds ...*Command) error {
 			return fmt.Errorf("command %q is not allowed to have top-level aliases", c.Name)
 		}
 
-		if err := c.init(a.name, a.output, usageTemplate, a.config); err != nil {
+		if err := c.init(a.name, a.output, usageTemplate, a.config, a.syncConfigAndFlagsForCompletion); err != nil {
 			return fmt.Errorf("failed to initialize command %q: %w", c.Name, err)
 		}
 
@@ -361,7 +355,7 @@ func (a *Application) ExecutedCommand() []string {
 
 // initializeConfig initializes the configuration for the application using Viper. It reads the configuration file
 // specified by the global --config flag.
-func (a *Application) initializeConfig(flags *pflag.FlagSet) error {
+func (a *Application) initializeConfig(flags *pflag.FlagSet, out *OutputWriter) error {
 	p, err := resolveHomeDir(a.flags.Config)
 	if err != nil {
 		return fmt.Errorf("failed to resolve home directory in config file path: %w", err)
@@ -369,19 +363,43 @@ func (a *Application) initializeConfig(flags *pflag.FlagSet) error {
 
 	a.flags.Config = p
 	a.config.SetConfigFile(a.flags.Config)
-	a.output.Debugf("Initializing configuration using file %q\n", a.flags.Config)
+	out.Debugf("Initializing configuration using file %q\n", a.flags.Config)
 
 	if err := a.config.ReadInConfig(); err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("failed to read configuration file: %w", err)
 		}
-		a.output.Debugln("The specified configuration file does not exist")
+		out.Debugln("The specified configuration file does not exist")
 	}
 
 	if err := a.config.BindPFlags(flags); err != nil {
 		return fmt.Errorf("failed to bind flags to configuration: %w", err)
 	}
 
+	return nil
+}
+
+// syncConfigAndFlagsForCompletion reloads configuration and global flags after Cobra parses the target command's flags.
+// It deliberately avoids execution hooks and ordinary command output.
+func (a *Application) syncConfigAndFlagsForCompletion(cmd *cobra.Command) error {
+	return a.syncConfigAndFlags(cmd.Flags(), NewOutputWriter(io.Discard, &a.flags.VerboseLevel))
+}
+
+// syncConfigAndFlags loads configuration and synchronizes global flags for execution or completion.
+func (a *Application) syncConfigAndFlags(parsedFlags *pflag.FlagSet, out *OutputWriter) error {
+	if err := a.initializeConfig(parsedFlags, out); err != nil {
+		return fmt.Errorf("failed to initialize configuration: %w", err)
+	}
+
+	if err := syncViperToFlags(a.flags, a.config, parsedFlags); err != nil {
+		return fmt.Errorf("failed to sync sticky flags: %w", err)
+	}
+
+	for _, flags := range a.additionalGlobalFlags {
+		if err := syncViperToFlags(flags, a.config, parsedFlags); err != nil {
+			return fmt.Errorf("failed to sync additional sticky flags: %w", err)
+		}
+	}
 	return nil
 }
 

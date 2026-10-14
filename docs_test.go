@@ -23,7 +23,7 @@ func TestGenerateDocs_FileContainsCorrectContent(t *testing.T) {
 		Description: "Prints a friendly greeting to the user.",
 		Flags:       &greetFlags{},
 		Args:        []naistrix.Argument{{Name: "name", Repeatable: true}},
-		Examples: []naistrix.Example{
+		Examples: []naistrix.CommandExample{
 			{Description: "Greet Alice", Command: "Alice"},
 		},
 		RunFunc: noop,

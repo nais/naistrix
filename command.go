@@ -81,15 +81,15 @@ type Command struct {
 	StickyFlags any
 
 	// Examples are examples of how to use the command. The examples are shown in the help output in the added order.
-	Examples []Example
+	Examples []CommandExample
 
 	// cobraCmd is the internal cobra.Command for the Command.
 	cobraCmd *cobra.Command
 }
 
-// Example represents an example of how to use a command. It is used to provide examples in the help output for the
-// command.
-type Example struct {
+// CommandExample represents an example of how to use a command. It is used to provide examples in the help output for
+// the command.
+type CommandExample struct {
 	// Description is a description of the example, shown in the help output. It should be a short, concise description
 	// of what the example does.
 	//

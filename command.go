@@ -13,79 +13,6 @@ import (
 	"github.com/spf13/viper"
 )
 
-const (
-	// defaultArgumentPrompt is the text question used when an argument has no custom Prompt or Choices.
-	defaultArgumentPrompt = "Enter a value"
-
-	// defaultArgumentSelectPrompt is the selection question used when an argument has Choices but no custom Prompt.
-	defaultArgumentSelectPrompt = "Select a value"
-
-	// repeatableArgumentPrompt is the text question used after collecting the first value of a repeatable argument.
-	repeatableArgumentPrompt = "Enter another value, or press Enter to finish"
-
-	// repeatableArgumentConfirm is the confirmation format used after each repeatable choice; %s is the argument name.
-	repeatableArgumentConfirm = "Add another %s?"
-)
-
-var (
-	promptArgument       = input.Input
-	selectArgument       = input.Select[string]
-	confirmArgument      = input.Confirm
-	argumentsInteractive = input.IsInteractive
-)
-
-// Argument represents a positional argument for a command. All arguments for a command will be grouped together in a
-// string slice, and the arguments will be injected into the command's [RunFunc] (amongst others) in the order they are
-// defined.
-type Argument struct {
-	// Name is the name of the argument, used for help output. This field is required.
-	Name string
-
-	// Repeatable can be used for repeatable arguments. Only the last argument for a command can be repeatable.
-	Repeatable bool
-
-	// Prompt overrides the default question shown when this argument is missing in an interactive terminal. The prompt
-	// will be prefixed argument position and uppercase name, as in "#1 NAME:". Automatic choice completion also uses
-	// this text as shell active help, without that prefix. Mutually exclusive with [Argument.PromptFunc].
-	Prompt string
-
-	// PromptFunc renders the question for a missing argument and the active help for automatic choice completion. As
-	// with [Argument.Prompt], interactive questions are prefixed with the argument position and uppercase name. Shell
-	// active help uses the returned text without that prefix.
-	//
-	// Flags are synchronized before it runs, and args contains only earlier validated and normalized arguments. It is
-	// called only when text is needed, at most once per argument per execution or completion request. An empty result
-	// uses the default question when prompting and adds no active help during completion. Mutually exclusive with
-	// [Argument.Prompt].
-	PromptFunc ArgumentPromptFunc
-
-	// Choices lists the valid values for this argument. If empty, any value is allowed. When prompting, these values
-	// are presented as a selectable list instead of a text prompt. They also provide shell completion unless the
-	// command configures [Command.AutoCompleteFunc] or [Command.AutoCompleteExtensions]. Mutually exclusive with
-	// [Argument.ChoicesFunc].
-	Choices []string
-
-	// ChoicesFunc resolves allowed values at execution time, after flags are synchronized. Its args contain only
-	// earlier positional arguments, already validated and normalized. The function is called at most once per argument
-	// per execution, including for values supplied on the command line. An empty result means no valid choices. It also
-	// supplies automatic shell completion and may be called again for each completion request. Mutually exclusive with
-	// [Argument.Choices].
-	ChoicesFunc ArgumentChoicesFunc
-
-	// ChoicesCaseInsensitive accepts [Argument.Choices] regardless of case, using Unicode case folding. Accepted values
-	// are normalized to the configured choice before [ValidateFunc] and [RunFunc] receive them. Choices must be
-	// distinct under case-insensitive matching. This also applies to [Argument.ChoicesFunc] results and has no effect
-	// without either source.
-	ChoicesCaseInsensitive bool
-}
-
-// ArgumentChoicesFunc resolves allowed values for an argument using the command context and earlier resolved arguments.
-// Returned values are used for both interactive selection and validation.
-type ArgumentChoicesFunc func(ctx context.Context, args *Arguments) ([]string, error)
-
-// ArgumentPromptFunc renders argument text using the command context and earlier resolved arguments.
-type ArgumentPromptFunc func(ctx context.Context, args *Arguments) (string, error)
-
 // Command represents a command in the CLI application.
 type Command struct {
 	// Name is the name of the command, this is used to invoke the command in the CLI. This field is required.
@@ -181,69 +108,6 @@ type Example struct {
 // The [Arguments] parameter holds the arguments specified by the user, and all output should be generated using the
 // [OutputWriter].
 type RunFunc func(ctx context.Context, args *Arguments, out *OutputWriter) error
-
-// promptText returns prompt text based on a callback or a statically configured string.
-func (a Argument) promptText(ctx context.Context, prefix *Arguments) (string, error) {
-	if a.PromptFunc != nil {
-		return a.PromptFunc(ctx, prefix)
-	}
-	return a.Prompt, nil
-}
-
-// promptValues collects one or more values for a missing argument at the given 1-based position.
-func (a Argument) promptValues(ctx context.Context, out *OutputWriter, position int) ([]string, error) {
-	name := strings.ToUpper(a.Name)
-	question := a.Prompt
-	if question == "" {
-		question = defaultArgumentPrompt
-		if len(a.Choices) > 0 {
-			question = defaultArgumentSelectPrompt
-		}
-	}
-	prefix := fmt.Sprintf("#%d %s: ", position, name)
-	prompt := prefix + question
-	var values []string
-	for {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		var value string
-		var err error
-		if len(a.Choices) > 0 {
-			value, err = selectArgument(prompt, a.Choices)
-		} else {
-			value, err = promptArgument(prompt)
-		}
-		if err != nil {
-			return nil, err
-		}
-		if len(a.Choices) == 0 && strings.TrimSpace(value) == "" {
-			if len(values) > 0 {
-				return values, nil
-			}
-			out.Warnln("A value is required. Please try again.")
-			continue
-		}
-		values = append(values, value)
-		if !a.Repeatable {
-			return values, nil
-		}
-		if len(a.Choices) > 0 {
-			if err := ctx.Err(); err != nil {
-				return nil, err
-			}
-			more, err := confirmArgument(fmt.Sprintf(repeatableArgumentConfirm, name))
-			if err != nil {
-				return nil, err
-			}
-			if !more {
-				return values, nil
-			}
-		} else {
-			prompt = prefix + repeatableArgumentPrompt
-		}
-	}
-}
 
 // cobraExample generates a formatted string of examples suitable for the underlying cobra.Command.
 func (c *Command) cobraExample(prefix string) (string, error) {
@@ -594,4 +458,155 @@ func (c *Command) syncFlags(cmd *cobra.Command, config *viper.Viper) error {
 		return fmt.Errorf("failed to sync sticky flags: %w", err)
 	}
 	return nil
+}
+
+// resolveArguments uses execution-local definitions and values to avoid retaining dynamic choices between runs. Earlier
+// arguments are resolved and validated before a later argument's ChoicesFunc is invoked.
+func (c *Command) resolveArguments(ctx context.Context, supplied []string, out *OutputWriter, prompt bool) (*Arguments, error) {
+	definitions := slices.Clone(c.Args)
+	values := slices.Clone(supplied)
+	if count := len(definitions); count > 0 && (len(values) >= count || !prompt) {
+		validateCount := ValidateExactArgs(count)
+		if definitions[count-1].Repeatable {
+			validateCount = ValidateMinArgs(count)
+		}
+		if err := validateCount(ctx, newArguments(definitions, values)); err != nil {
+			return nil, err
+		}
+	}
+
+	for i := range definitions {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		arg := definitions[i]
+		if arg.ChoicesFunc != nil {
+			// Only the resolved prefix is exposed; current and later values cannot influence this callback.
+			resolved, err := arg.resolveChoices(ctx, newArguments(definitions[:i], slices.Clone(values[:i])))
+			if err != nil {
+				return nil, err
+			}
+			arg = resolved
+			definitions[i] = resolved
+		}
+
+		if i >= len(values) {
+			p, err := arg.promptText(ctx, newArguments(definitions[:i], slices.Clone(values[:i])))
+			if err != nil {
+				return nil, fmt.Errorf("failed to get prompt for argument %q: %w", arg.Name, err)
+			}
+			arg.Prompt = p
+			answers, err := arg.promptValues(ctx, out, i+1)
+			if err != nil {
+				return nil, fmt.Errorf("failed to prompt for argument %q: %w", arg.Name, err)
+			}
+			values = append(values, answers...)
+		}
+		end := i + 1
+		if arg.Repeatable {
+			end = len(values)
+		}
+		for j := i; j < end; j++ {
+			value, err := arg.resolveChoice(values[j])
+			if err != nil {
+				return nil, err
+			}
+			values[j] = value
+		}
+	}
+	return newArguments(definitions, values), nil
+}
+
+func (c *Command) autocomplete(syncConfigAndFlags syncConfigAndFlagsFunc) cobra.CompletionFunc {
+	if len(c.AutoCompleteExtensions) > 0 {
+		return autocompleteFiles(c.AutoCompleteExtensions)
+	}
+
+	if c.AutoCompleteFunc == nil {
+		for _, arg := range c.Args {
+			if len(arg.Choices) > 0 || arg.ChoicesFunc != nil {
+				return c.autocompleteChoices(syncConfigAndFlags)
+			}
+		}
+		return nil
+	}
+
+	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		completions, activeHelp := c.AutoCompleteFunc(cmd.Context(), newArguments(c.Args, args), toComplete)
+		if activeHelp != "" {
+			completions = cobra.AppendActiveHelp(completions, activeHelp)
+		}
+		return completions, cobra.ShellCompDirectiveNoFileComp
+	}
+}
+
+// autocompleteChoices completes the current argument without running command validation or interactive prompts.
+func (c *Command) autocompleteChoices(syncConfigAndFlags syncConfigAndFlagsFunc) cobra.CompletionFunc {
+	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		index := len(args)
+		if index >= len(c.Args) {
+			if len(c.Args) == 0 || !c.Args[len(c.Args)-1].Repeatable {
+				return nil, cobra.ShellCompDirectiveNoFileComp
+			}
+			index = len(c.Args) - 1
+		}
+		arg := c.Args[index]
+		if len(arg.Choices) == 0 && arg.ChoicesFunc == nil {
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		}
+		if err := syncConfigAndFlags(cmd); err != nil {
+			return completionError(cmd, err)
+		}
+		resolved, err := c.resolveCompletionChoices(cmd.Context(), args, index)
+		if err != nil {
+			return completionError(cmd, err)
+		}
+		var completions []string
+		for _, choice := range resolved.Choices {
+			if completion, ok := resolved.completeChoice(choice, toComplete); ok {
+				completions = append(completions, completion)
+			}
+		}
+		if resolved.Prompt != "" {
+			completions = cobra.AppendActiveHelp(completions, resolved.Prompt)
+		}
+		return completions, cobra.ShellCompDirectiveNoFileComp
+	}
+}
+
+// resolveCompletionChoices resolves only earlier arguments and the current choice source, not future arguments.
+func (c *Command) resolveCompletionChoices(ctx context.Context, supplied []string, index int) (*Argument, error) {
+	definitions := slices.Clone(c.Args[:index+1])
+	values := slices.Clone(supplied[:index])
+	for i := range definitions {
+		arg := definitions[i]
+		if arg.ChoicesFunc != nil {
+			resolved, err := arg.resolveChoices(ctx, newArguments(definitions[:i], slices.Clone(values[:i])))
+			if err != nil {
+				return nil, err
+			}
+			arg = resolved
+			definitions[i] = resolved
+		}
+		if i < index {
+			value, err := arg.resolveChoice(values[i])
+			if err != nil {
+				return nil, err
+			}
+			values[i] = value
+		}
+	}
+	arg := definitions[index]
+	// already supplied values of the current repeatable argument are validated but not exposed to ChoicesFunc.
+	for _, value := range supplied[index:] {
+		if _, err := arg.resolveChoice(value); err != nil {
+			return nil, err
+		}
+	}
+	p, err := arg.promptText(ctx, newArguments(definitions[:index], slices.Clone(values)))
+	if err != nil {
+		return nil, err
+	}
+	arg.Prompt = p
+	return &arg, nil
 }

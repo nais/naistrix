@@ -1,6 +1,15 @@
 package naistrix
 
-import "github.com/nais/naistrix/input"
+import (
+	"io"
+
+	"github.com/nais/naistrix/input"
+)
+
+// SetCompletionErrorWriterForTest sets a custom error writer for tests.
+func SetCompletionErrorWriterForTest(app *Application, writer io.Writer) {
+	app.rootCommand.SetErr(writer)
+}
 
 // SetChoicePromptForTest replaces choice selection and terminal detection for external tests only.
 // Tests must restore the hooks and must not run in parallel.

@@ -148,7 +148,6 @@ func TestCommandPromptsForMissingArguments(t *testing.T) {
 			promptArgument = func(question string) (string, error) {
 				if len(questions) == 0 || question != questions[0] {
 					t.Fatalf("unexpected prompt %q, remaining: %v", question, questions)
-					return "", errors.New("unexpected prompt")
 				}
 				questions = questions[1:]
 				answer := tt.answers[0]

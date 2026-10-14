@@ -19,6 +19,40 @@ func (a Argument) validateChoices() error {
 	return nil
 }
 
+// resolveChoices snapshots dynamic choices without changing the command's argument definition.
+func (a Argument) resolveChoices(ctx context.Context, prefix *Arguments) (Argument, error) {
+	if a.ChoicesFunc == nil {
+		return a, nil
+	}
+	if err := ctx.Err(); err != nil {
+		return a, err
+	}
+	choices, err := a.ChoicesFunc(ctx, prefix)
+	if err != nil {
+		return a, fmt.Errorf("failed to resolve choices for argument %q: %w", a.Name, err)
+	}
+	if err := ctx.Err(); err != nil {
+		return a, err
+	}
+	if len(choices) == 0 {
+		return a, Errorf("no choices available for argument %q", a.Name)
+	}
+	a.Choices = slices.Clone(choices)
+	if err := a.validateChoices(); err != nil {
+		return a, err
+	}
+	return a, nil
+}
+
+// resolveChoice validates a supplied value and returns the canonical spelling of a matching choice.
+func (a Argument) resolveChoice(value string) (string, error) {
+	canonical := a.normalizeChoice(value)
+	if len(a.Choices) > 0 && !slices.Contains(a.Choices, canonical) {
+		return "", Errorf("invalid value %q for argument %q: expected one of %s", value, a.Name, strings.Join(a.Choices, ", "))
+	}
+	return canonical, nil
+}
+
 // resolveArguments uses execution-local definitions and values to avoid retaining dynamic choices between runs. Earlier
 // arguments are resolved and validated before a later argument's ChoicesFunc is invoked.
 func (c *Command) resolveArguments(ctx context.Context, supplied []string, out *OutputWriter, prompt bool) (*Arguments, error) {
@@ -41,24 +75,20 @@ func (c *Command) resolveArguments(ctx context.Context, supplied []string, out *
 		arg := definitions[i]
 		if arg.ChoicesFunc != nil {
 			// Only the resolved prefix is exposed; current and later values cannot influence this callback.
-			choices, err := arg.ChoicesFunc(ctx, newArguments(definitions[:i], slices.Clone(values[:i])))
+			resolved, err := arg.resolveChoices(ctx, newArguments(definitions[:i], slices.Clone(values[:i])))
 			if err != nil {
-				return nil, fmt.Errorf("failed to resolve choices for argument %q: %w", arg.Name, err)
-			}
-			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
-			if len(choices) == 0 {
-				return nil, Errorf("no choices available for argument %q", arg.Name)
-			}
-			arg.Choices = slices.Clone(choices)
-			if err := arg.validateChoices(); err != nil {
-				return nil, err
-			}
-			definitions[i] = arg
+			arg = resolved
+			definitions[i] = resolved
 		}
 
 		if i >= len(values) {
+			p, err := arg.promptText(ctx, newArguments(definitions[:i], slices.Clone(values[:i])))
+			if err != nil {
+				return nil, fmt.Errorf("failed to get prompt for argument %q: %w", arg.Name, err)
+			}
+			arg.Prompt = p
 			answers, err := arg.promptValues(ctx, out, i+1)
 			if err != nil {
 				return nil, fmt.Errorf("failed to prompt for argument %q: %w", arg.Name, err)
@@ -70,9 +100,9 @@ func (c *Command) resolveArguments(ctx context.Context, supplied []string, out *
 			end = len(values)
 		}
 		for j := i; j < end; j++ {
-			value := arg.normalizeChoice(values[j])
-			if len(arg.Choices) > 0 && !slices.Contains(arg.Choices, value) {
-				return nil, Errorf("invalid value %q for argument %q: expected one of %s", values[j], arg.Name, strings.Join(arg.Choices, ", "))
+			value, err := arg.resolveChoice(values[j])
+			if err != nil {
+				return nil, err
 			}
 			values[j] = value
 		}

@@ -76,8 +76,10 @@ func main() {
 		Title: "Preview deleting a member from a team",
 		Flags: flags,
 		Args: []naistrix.Argument{{
-			Name:                   "member",
-			Prompt:                 "Select a member",
+			Name: "member",
+			PromptFunc: func(context.Context, *naistrix.Arguments) (string, error) {
+				return fmt.Sprintf("Select a member of the %q team", flags.Team), nil
+			},
 			ChoicesCaseInsensitive: true,
 			ChoicesFunc: func(context.Context, *naistrix.Arguments) ([]string, error) {
 				return getTeamMembers(flags.Team)
@@ -99,6 +101,9 @@ func main() {
 				Name:                   "member",
 				Repeatable:             true,
 				ChoicesCaseInsensitive: true,
+				PromptFunc: func(_ context.Context, args *naistrix.Arguments) (string, error) {
+					return fmt.Sprintf("Select a member of the %q team", args.Get("team")), nil
+				},
 				ChoicesFunc: func(_ context.Context, args *naistrix.Arguments) ([]string, error) {
 					return getTeamMembers(args.Get("team"))
 				},

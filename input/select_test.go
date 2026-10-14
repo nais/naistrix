@@ -12,6 +12,8 @@ import (
 func TestSelect_ReturnsSelectedOption(t *testing.T) {
 	restore := input.SetInteractive(func() bool { return true })
 	defer restore()
+	restoreOutput := input.DiscardPromptOutputForTest(t)
+	defer restoreOutput()
 
 	go func() {
 		_ = keyboard.SimulateKeyPress(keys.Enter)

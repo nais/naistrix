@@ -13,6 +13,7 @@ tool (
 )
 
 require (
+	atomicgo.dev/cursor v0.2.0
 	atomicgo.dev/keyboard v0.2.10
 	github.com/MakeNowJust/heredoc/v2 v2.0.1
 	github.com/pterm/pterm v0.12.84
@@ -25,7 +26,6 @@ require (
 )
 
 require (
-	atomicgo.dev/cursor v0.2.0 // indirect
 	atomicgo.dev/schedule v0.1.0 // indirect
 	cloud.google.com/go v0.123.0 // indirect
 	cloud.google.com/go/auth v0.23.3 // indirect

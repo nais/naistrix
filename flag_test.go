@@ -148,7 +148,7 @@ func TestSetupFlag(t *testing.T) {
 		flags := "some string"
 		if err := app.AddGlobalFlags(&flags); err == nil {
 			t.Fatalf("expected error when adding invalid global flags type")
-		} else if contains := "expected flags to be a pointer to a struct"; !strings.Contains(err.Error(), contains) {
+		} else if contains := "expected flags to be a non-nil pointer to a struct"; !strings.Contains(err.Error(), contains) {
 			t.Fatalf("expected error message to contain %q, got: %q", contains, err.Error())
 		}
 	})
@@ -203,4 +203,46 @@ func TestSetupFlag(t *testing.T) {
 			t.Fatalf("expected error message to contain %q, got: %q", contains, err.Error())
 		}
 	})
+}
+
+func TestNilFlagStructs(t *testing.T) {
+	type testFlags struct {
+		Value string
+	}
+	for _, tt := range []struct {
+		name      string
+		flags     any
+		wantError bool
+	}{
+		{name: "no flags", flags: nil},
+		{name: "typed nil pointer", flags: (*testFlags)(nil), wantError: true},
+		{name: "valid pointer", flags: &testFlags{}},
+	} {
+		for _, scope := range []string{"global", "command", "sticky"} {
+			t.Run(tt.name+"/"+scope, func(t *testing.T) {
+				app, _, err := naistrix.NewApplication("test", "Test application", "v0.0.0")
+				if err != nil {
+					t.Fatal(err)
+				}
+				if scope == "global" {
+					err = app.AddGlobalFlags(tt.flags)
+				} else {
+					cmd := &naistrix.Command{Name: "cmd", Title: "Test flags", RunFunc: noop}
+					if scope == "command" {
+						cmd.Flags = tt.flags
+					} else {
+						cmd.StickyFlags = tt.flags
+					}
+					err = app.AddCommand(cmd)
+				}
+				if tt.wantError {
+					if err == nil || !strings.Contains(err.Error(), "non-nil pointer to a struct") {
+						t.Fatalf("expected typed nil pointer error, got %v", err)
+					}
+				} else if err != nil {
+					t.Fatal(err)
+				}
+			})
+		}
+	}
 }

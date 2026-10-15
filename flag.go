@@ -114,7 +114,7 @@ func setupFlags(cmd *cobra.Command, inputArgs []Argument, flags any, flagSet *pf
 		return nil
 	}
 
-	if err := validateFlags(flags); err != nil {
+	if err := validateFlagStruct(flags); err != nil {
 		return fmt.Errorf("invalid flags: %w", err)
 	}
 
@@ -226,16 +226,16 @@ func unwrap(value any) any {
 	}
 }
 
-// validateFlags is used to validate command flags.
-func validateFlags(flags any) error {
-	t := reflect.TypeOf(flags)
+// validateFlagStruct checks that the flag definition is a non-nil pointer to a struct.
+func validateFlagStruct(flags any) error {
+	v := reflect.ValueOf(flags)
 
-	if t.Kind() != reflect.Pointer {
+	if !v.IsValid() || v.Kind() != reflect.Pointer {
 		return fmt.Errorf("expected flags to be a pointer")
 	}
 
-	if t.Elem().Kind() != reflect.Struct {
-		return fmt.Errorf("expected flags to be a pointer to a struct")
+	if v.Type().Elem().Kind() != reflect.Struct || v.IsNil() {
+		return fmt.Errorf("expected flags to be a non-nil pointer to a struct")
 	}
 
 	return nil

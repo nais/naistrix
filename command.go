@@ -147,9 +147,9 @@ func (c *Command) cobraUse() string {
 	return cmd.String()
 }
 
-// validateArgs validates the positional arguments for the command, and prepends a ValidateFunc to the command that will
-// make sure the correct amount of arguments is sent to the command when executed by the end-user.
-func (c *Command) validateArgs() error {
+// validateArgumentDefinitions checks argument configuration and installs runtime count and choice checks ahead of the
+// command's custom [ValidateFunc].
+func (c *Command) validateArgumentDefinitions() error {
 	hasRepeatable := false
 
 	for i, arg := range c.Args {
@@ -162,7 +162,7 @@ func (c *Command) validateArgs() error {
 		if arg.ChoicesFunc != nil && arg.Choices != nil {
 			return fmt.Errorf("argument %q cannot have both Choices and ChoicesFunc", arg.Name)
 		}
-		if err := arg.validateChoices(); err != nil {
+		if err := arg.validateChoiceDefinitions(); err != nil {
 			return err
 		}
 
@@ -310,7 +310,7 @@ func (c *Command) cobraRun(out *OutputWriter) func(*cobra.Command, []string) err
 			return err
 		}
 
-		if err := c.validateInput(cmd, resolved); err != nil {
+		if err := c.validateArgumentValues(cmd, resolved); err != nil {
 			return err
 		}
 
@@ -320,8 +320,8 @@ func (c *Command) cobraRun(out *OutputWriter) func(*cobra.Command, []string) err
 	}
 }
 
-// validateInput runs argument count validation followed by the command's custom validation.
-func (c *Command) validateInput(cmd *cobra.Command, args *Arguments) error {
+// validateArgumentValues runs the configured count, choice, and custom checks on resolved positional argument values.
+func (c *Command) validateArgumentValues(cmd *cobra.Command, args *Arguments) error {
 	if c.ValidateFunc == nil {
 		return nil
 	}
@@ -334,8 +334,8 @@ func (c *Command) validateInput(cmd *cobra.Command, args *Arguments) error {
 	return nil
 }
 
-// validate checks that the command is valid.
-func (c *Command) validate() error {
+// validateDefinition checks the command's configuration before initializing its Cobra command.
+func (c *Command) validateDefinition() error {
 	if strings.TrimSpace(c.Name) == "" {
 		return fmt.Errorf("command name cannot be empty")
 	}
@@ -362,12 +362,12 @@ func (c *Command) validate() error {
 		return fmt.Errorf("either RunFunc, SubCommands or Deprecated must be set for command: %v", c.Name)
 	}
 
-	return c.validateArgs()
+	return c.validateArgumentDefinitions()
 }
 
 // init validates and initializes the cobra.Command.
 func (c *Command) init(cmd string, out *OutputWriter, usageTemplate string, config *viper.Viper, syncInheritedConfigAndFlags syncConfigAndFlagsFunc) error {
-	if err := c.validate(); err != nil {
+	if err := c.validateDefinition(); err != nil {
 		return err
 	}
 
@@ -406,7 +406,7 @@ func (c *Command) init(cmd string, out *OutputWriter, usageTemplate string, conf
 				if err != nil {
 					return err
 				}
-				return c.validateInput(co, resolved)
+				return c.validateArgumentValues(co, resolved)
 			}
 			return nil
 		},

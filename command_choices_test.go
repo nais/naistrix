@@ -68,7 +68,7 @@ func TestCaseInsensitiveArgumentChoices(t *testing.T) {
 			if err := app.AddCommand(&naistrix.Command{
 				Name: "test", Title: "Test", DisableArgumentPrompts: true,
 				Args: []naistrix.Argument{{Name: "value", Choices: choices, ChoicesCaseInsensitive: tt.insensitive, Repeatable: tt.repeatable}},
-				ValidateFunc: func(_ context.Context, args *naistrix.Arguments) error {
+				ValidateArgsFunc: func(_ context.Context, args *naistrix.Arguments) error {
 					validated = true
 					check(args)
 					return nil
@@ -151,7 +151,7 @@ func TestCaseInsensitiveChoicePrompt(t *testing.T) {
 	if err := app.AddCommand(&naistrix.Command{
 		Name: "test", Title: "Test",
 		Args: []naistrix.Argument{{Name: "value", Choices: choices, ChoicesCaseInsensitive: true}},
-		ValidateFunc: func(_ context.Context, args *naistrix.Arguments) error {
+		ValidateArgsFunc: func(_ context.Context, args *naistrix.Arguments) error {
 			validated = true
 			if got := args.Get("value"); got != "Upper" {
 				t.Errorf("validated value %q, want Upper", got)
@@ -225,7 +225,7 @@ func TestDynamicChoicesFromEarlierArguments(t *testing.T) {
 						return []string{"Alice", "Bob"}, nil
 					},
 				}},
-				ValidateFunc: func(_ context.Context, args *naistrix.Arguments) error {
+				ValidateArgsFunc: func(_ context.Context, args *naistrix.Arguments) error {
 					validations++
 					if !slices.Equal(args.All(), []string{"Dev", "Alice"}) {
 						t.Errorf("custom validation saw %v", args.All())

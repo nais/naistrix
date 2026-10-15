@@ -128,7 +128,7 @@ func TestCommandPromptsForMissingArguments(t *testing.T) {
 					{Name: "two", Prompt: "Second question"},
 					{Name: "three", Prompt: "Third question"},
 				},
-				ValidateFunc: func(_ context.Context, args *Arguments) error {
+				ValidateArgsFunc: func(_ context.Context, args *Arguments) error {
 					if args.Len() != 3 {
 						t.Errorf("validator received %d arguments, want 3", args.Len())
 					}
@@ -398,7 +398,7 @@ func TestCommandValidatesPromptedArguments(t *testing.T) {
 	called := false
 	if err := app.AddCommand(&Command{
 		Name: "test", Title: "Test", Args: []Argument{{Name: "value", Prompt: "Enter a value"}},
-		ValidateFunc: func(_ context.Context, args *Arguments) error {
+		ValidateArgsFunc: func(_ context.Context, args *Arguments) error {
 			if args.Get("value") != "valid" {
 				return Errorf("invalid value")
 			}
@@ -480,7 +480,7 @@ func TestCommandArgumentChoices(t *testing.T) {
 			if err := app.AddCommand(&Command{
 				Name: "test", Title: "Test",
 				Args: []Argument{{Name: "value", Prompt: tt.prompt, Choices: []string{"foo", "bar"}, Repeatable: tt.repeatable}},
-				ValidateFunc: func(_ context.Context, _ *Arguments) error {
+				ValidateArgsFunc: func(_ context.Context, _ *Arguments) error {
 					validated = true
 					return nil
 				},

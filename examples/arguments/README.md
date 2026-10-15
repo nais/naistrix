@@ -2,6 +2,30 @@
 
 Define positional arguments in a command's `Args` field, in the order users should supply them. Access their values by name through `Arguments.Get`, or `Arguments.GetRepeatable` for a repeatable argument, which must be defined last.
 
+## Validation
+
+Use `Command.ValidateFlagsFunc` to check required flags and other prerequisites before resolving
+argument choices or generating prompts. Flags have already been synchronized from command-line input,
+configuration, and environment variables when it runs. Capture the flag struct in the callback:
+
+```go
+naistrix.Command{
+    Flags: flags,
+    ValidateFlagsFunc: func(context.Context) error {
+        if flags.Team == "" {
+            return naistrix.Errorf("--team is required")
+        }
+        return nil
+    },
+}
+```
+
+`PromptFunc` and `ChoicesFunc` can then rely on those prerequisites. Errors stop execution before
+either callback runs. Parent commands' flag validators also run when executing their descendants.
+
+Keep `Command.ValidateArgsFunc` for checks on complete, normalized positional arguments. It retains its
+existing timing before `RunFunc`; it is not moved to the early phase or invoked during completion.
+
 ## Interactive prompts
 
 In interactive terminals, missing arguments are prompted for automatically. Each argument's optional `Prompt` customizes its question; otherwise a default question is used.
@@ -78,8 +102,13 @@ When the current argument has a `Prompt` or `PromptFunc`, automatic choice compl
 
 `AutoCompleteExtensions` takes priority, followed by a command's explicit `AutoCompleteFunc`. Automatic choice completion is only used when neither override is configured.
 
-For dynamic choices, earlier arguments are validated and normalized, and flag structs are synchronized before calling `ChoicesFunc`. As during execution, the callback sees only earlier positional arguments, not values already entered for the current repeatable argument. Each completion request resolves a fresh list; callbacks should use the supplied context and avoid printing to standard output.
+For dynamic choices, earlier arguments are validated and normalized, and flag structs are synchronized before calling `ChoicesFunc`. The command's and its ancestors' `ValidateFlagsFunc` callbacks run after synchronization, before `ChoicesFunc` or `PromptFunc`. As during execution, the argument callbacks see only earlier positional arguments, not values already entered for the current repeatable argument. Each completion request resolves a fresh list; callbacks should use the supplied context and avoid printing to standard output.
+
+Flag validators can run repeatedly as the user requests completion, so keep them side-effect-free.
+Failures appear as completion diagnostics rather than selectable suggestions. Explicit custom
+completion handlers and file-extension overrides retain control and do not invoke these validators
+through the automatic choice-completion path.
 
 Case-insensitive completion preserves the prefix as typed so shells can match suggestions. Completed values are normalized to the configured spelling during command execution, just like supplied values.
 
-Completion never prompts or runs custom validation or the command itself. If a callback fails, returns no choices, or returns ambiguous choices, completion displays the diagnostic as shell active help and also writes it to standard error. It supplies no selectable suggestions and does not fall back to file suggestions. Multiline diagnostics are flattened to a single line for active help.
+Completion never prompts or runs `ValidateArgsFunc` or the command itself. If a callback fails, returns no choices, or returns ambiguous choices, completion displays the diagnostic as shell active help and also writes it to standard error. It supplies no selectable suggestions and does not fall back to file suggestions. Multiline diagnostics are flattened to a single line for active help.

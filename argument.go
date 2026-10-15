@@ -210,8 +210,9 @@ func (a Argument) promptValues(ctx context.Context, out *OutputWriter, position 
 	}
 }
 
-// validateChoices rejects duplicate options, including case-folded duplicates when matching is case-insensitive.
-func (a Argument) validateChoices() error {
+// validateChoiceDefinitions checks that an allowed-choice list is unambiguous. It rejects duplicate options, including
+// case-folded duplicates when matching is case-insensitive.
+func (a Argument) validateChoiceDefinitions() error {
 	for i, choice := range a.Choices {
 		for _, previous := range a.Choices[:i] {
 			if previous == choice || a.ChoicesCaseInsensitive && strings.EqualFold(previous, choice) {
@@ -241,7 +242,7 @@ func (a Argument) resolveChoices(ctx context.Context, prefix *Arguments) (Argume
 		return a, Errorf("no choices available for argument %q", a.Name)
 	}
 	a.Choices = slices.Clone(choices)
-	if err := a.validateChoices(); err != nil {
+	if err := a.validateChoiceDefinitions(); err != nil {
 		return a, err
 	}
 	return a, nil

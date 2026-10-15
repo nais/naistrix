@@ -104,10 +104,9 @@ When the current argument has a `Prompt` or `PromptFunc`, automatic choice compl
 
 For dynamic choices, earlier arguments are validated and normalized, and flag structs are synchronized before calling `ChoicesFunc`. The command's and its ancestors' `ValidateFlagsFunc` callbacks run after synchronization, before `ChoicesFunc` or `PromptFunc`. As during execution, the argument callbacks see only earlier positional arguments, not values already entered for the current repeatable argument. Each completion request resolves a fresh list; callbacks should use the supplied context and avoid printing to standard output.
 
-Flag validators can run repeatedly as the user requests completion, so keep them side-effect-free.
-Failures appear as completion diagnostics rather than selectable suggestions. Explicit custom
-completion handlers and file-extension overrides retain control and do not invoke these validators
-through the automatic choice-completion path.
+Flag validators run before all positional argument completion, including custom `AutoCompleteFunc` handlers and file-extension completion. All global, ancestor, and target-command flag structs are synchronized before validation. Validators run ancestor-first and stop at the first error. They can run repeatedly as the user requests completion, so keep them side-effect-free. Failures appear as completion diagnostics rather than selectable suggestions.
+
+Flag-value completion also synchronizes all flag structs, but **does not run `ValidateFlagsFunc`**. This allows `--team <TAB>` to suggest teams even when `--team` is required and has not been supplied yet. A flag's completion callback should check only the prerequisites needed for its own suggestions. For example, a `--member` callback that depends on `--team` can return active help asking the user to specify `--team` first. Command-wide execution validation must not block filling in missing flags.
 
 Case-insensitive completion preserves the prefix as typed so shells can match suggestions. Completed values are normalized to the configured spelling during command execution, just like supplied values.
 

@@ -5,8 +5,9 @@ import (
 )
 
 // ValidateFlagsFunc validates flags captured by the callback after they are synchronized, before argument choices or
-// prompts are resolved. It also runs before automatic choice completion and should be side-effect-free and avoid
-// output. Return an error to stop execution or completion.
+// prompts are resolved. It also runs before all positional argument completion, including custom handlers and file
+// completion. It does not run during flag-value completion, so users can complete required flags that are still missing.
+// Keep it side-effect-free and avoid output. Return an error to stop execution or positional completion.
 type ValidateFlagsFunc func(ctx context.Context) error
 
 // ValidateArgsFunc validates resolved positional arguments before the command's [RunFunc] is executed. The args passed

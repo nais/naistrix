@@ -10,9 +10,7 @@ An empty chain succeeds.
 
 ## Flag validators
 
-`ValidateFlagsFuncs` composes callbacks that capture the flag struct. They receive the command context
-and check synchronized flags before choices and prompts are resolved. They also run during automatic
-choice completion, so keep them side-effect-free.
+`ValidateFlagsFuncs` composes callbacks that capture the flag struct. They receive the command context and check synchronized flags before choices and prompts are resolved. They also run during all positional argument completion, including custom handlers and file completion, so keep them side-effect-free. They do not run during flag-value completion, allowing users to complete required flags that are still missing.
 
 The example checks that `--team` is non-empty and contains no spaces or tabs. Run
 `go run . register alice --team platform` to provide a team, or omit the flag to use the default team.

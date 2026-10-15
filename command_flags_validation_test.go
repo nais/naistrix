@@ -276,7 +276,7 @@ func TestParentFlagValidation(t *testing.T) {
 				want = []string{"parent flags", "child flags", "choices"}
 				if strings.HasSuffix(mode, "failure") {
 					want = []string{"parent flags"}
-					if !slices.Equal(got, cobra.AppendActiveHelp(nil, "Argument completion failed: --team is required")) || !strings.Contains(stderr.String(), blocked.Error()) {
+					if !slices.Equal(got, cobra.AppendActiveHelp(nil, "Completion failed: --team is required")) || !strings.Contains(stderr.String(), blocked.Error()) {
 						t.Errorf("unexpected failure completions %v, stderr %q", got, stderr.String())
 					}
 				} else if !slices.Equal(got, []string{"Alice"}) {
@@ -351,7 +351,7 @@ func TestFlagValidationDuringCompletion(t *testing.T) {
 			}
 			got, directive := requestCompletion(t, app, stdout, append(args, "")...)
 			wantEvents := []string{"flags"}
-			want := cobra.AppendActiveHelp(nil, "Argument completion failed: --team is required")
+			want := cobra.AppendActiveHelp(nil, "Completion failed: --team is required")
 			if tt.supplied {
 				wantEvents = append(wantEvents, "choices", "prompt")
 				want = cobra.AppendActiveHelp([]string{"Alice"}, "Member of Dev")
@@ -380,14 +380,15 @@ func TestFlagValidationCanRejectCommandsWithoutArguments(t *testing.T) {
 	}
 }
 
-func TestFlagValidationPreservesExplicitCompletionOverrides(t *testing.T) {
+func TestFlagValidationBeforeExplicitCompletionOverrides(t *testing.T) {
 	for _, mode := range []string{"function", "extensions"} {
 		t.Run(mode, func(t *testing.T) {
 			app, stdout, _ := newCompletionApplication(t)
+			calls := 0
 			cmd := &naistrix.Command{
 				Name: "cmd", Title: "Command", RunFunc: completionMustNotRun(t),
 				ValidateFlagsFunc: func(context.Context) error {
-					t.Error("automatic flag validator ran for an explicit completion override")
+					calls++
 					return nil
 				},
 				Args:             []naistrix.Argument{{Name: "value", Choices: []string{"Alice"}}},
@@ -400,6 +401,9 @@ func TestFlagValidationPreservesExplicitCompletionOverrides(t *testing.T) {
 				t.Fatal(err)
 			}
 			got, directive := requestCompletion(t, app, stdout, "cmd", "")
+			if calls != 1 {
+				t.Errorf("validator ran %d times, want once", calls)
+			}
 			if mode == "function" {
 				if !slices.Equal(got, []string{"custom"}) || directive != cobra.ShellCompDirectiveNoFileComp {
 					t.Errorf("suggestions %v, directive %v", got, directive)

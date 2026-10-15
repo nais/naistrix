@@ -269,7 +269,7 @@ func TestCompletionErrors(t *testing.T) {
 			diagnostic, _, _ := strings.Cut(stderr.String(), "\nCompletion ended with directive:")
 			message := strings.Join(strings.Fields(diagnostic), " ")
 			want := cobra.AppendActiveHelp(nil, message)
-			if !slices.Equal(got, want) || directive != cobra.ShellCompDirectiveNoFileComp || !strings.Contains(message, "Argument completion failed:") {
+			if !slices.Equal(got, want) || directive != cobra.ShellCompDirectiveNoFileComp || !strings.Contains(message, "Completion failed:") {
 				t.Fatalf("got %v, directive %v, stderr %q", got, directive, stderr.String())
 			}
 			wantCalls := 1
@@ -326,7 +326,7 @@ func TestCompletionCancellation(t *testing.T) {
 	if err := app.Run(naistrix.RunWithArgs([]string{cobra.ShellCompRequestCmd, "cmd", ""}), naistrix.RunWithContext(ctx)); err != nil {
 		t.Fatal(err)
 	}
-	help := cobra.AppendActiveHelp(nil, "Argument completion failed: context canceled")
+	help := cobra.AppendActiveHelp(nil, "Completion failed: context canceled")
 	want := fmt.Sprintf("%s\n:%d\n", strings.Join(help, "\n"), cobra.ShellCompDirectiveNoFileComp)
 	if stdout.String() != want || !strings.Contains(stderr.String(), "context canceled") {
 		t.Fatalf("stdout %q, stderr %q", stdout.String(), stderr.String())
@@ -492,7 +492,7 @@ func TestCompletionPromptError(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, directive := requestCompletion(t, app, stdout, "cmd", "")
-	want := cobra.AppendActiveHelp(nil, "Argument completion failed: cannot render help please retry")
+	want := cobra.AppendActiveHelp(nil, "Completion failed: cannot render help please retry")
 	if !slices.Equal(got, want) || directive != cobra.ShellCompDirectiveNoFileComp || calls != 1 {
 		t.Fatalf("completion %v, directive %v, calls %d; want %v, NoFileComp, one call", got, directive, calls, want)
 	}

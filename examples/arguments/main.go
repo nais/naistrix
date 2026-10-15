@@ -17,9 +17,6 @@ var members = map[string][]string{
 }
 
 func getTeamMembers(team string) ([]string, error) {
-	if team == "" {
-		return nil, naistrix.Errorf("specify a team using --team")
-	}
 	m, ok := members[team]
 	if !ok {
 		return nil, naistrix.Errorf("team %q not found, available teams: %s", team, strings.Join(slices.Collect(maps.Keys(members)), ", "))
@@ -75,6 +72,12 @@ func main() {
 		Name:  "delete-member",
 		Title: "Preview deleting a member from a team",
 		Flags: flags,
+		ValidateFlagsFunc: func(context.Context) error {
+			if flags.Team == "" {
+				return naistrix.Errorf("specify a team using --team")
+			}
+			return nil
+		},
 		Args: []naistrix.Argument{{
 			Name: "member",
 			PromptFunc: func(context.Context, *naistrix.Arguments) (string, error) {

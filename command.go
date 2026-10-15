@@ -49,8 +49,12 @@ type Command struct {
 	// mutually exclusive.
 	RunFunc RunFunc
 
-	// ValidateFunc will be executed before the command's [Command.RunFunc] is executed.
-	ValidateFunc ValidateFunc
+	// ValidateFlagsFunc runs after this command's flags are synchronized, before resolving argument choices or prompts.
+	// It also runs before automatic choice completion. Parent commands' validators run for their descendants too.
+	ValidateFlagsFunc ValidateFlagsFunc
+
+	// ValidateArgsFunc runs after argument resolution and before [Command.RunFunc]. It is not called during completion.
+	ValidateArgsFunc ValidateArgsFunc
 
 	// AutoCompleteFunc sets up a function that will be used to provide auto-completion suggestions for the command.
 	// When unset, [Argument.Choices] and [Argument.ChoicesFunc] provide automatic completion.
@@ -148,7 +152,7 @@ func (c *Command) cobraUse() string {
 }
 
 // validateArgumentDefinitions checks argument configuration and installs runtime count and choice checks ahead of the
-// command's custom [ValidateFunc].
+// command's custom [ValidateArgsFunc].
 func (c *Command) validateArgumentDefinitions() error {
 	hasRepeatable := false
 
@@ -175,7 +179,7 @@ func (c *Command) validateArgumentDefinitions() error {
 	}
 
 	numArgs := len(c.Args)
-	var validationFunc ValidateFunc
+	var validationFunc ValidateArgsFunc
 	if numArgs > 0 && hasRepeatable {
 		validationFunc = ValidateMinArgs(numArgs)
 	} else if numArgs > 0 {
@@ -183,8 +187,8 @@ func (c *Command) validateArgumentDefinitions() error {
 	}
 
 	if validationFunc != nil {
-		existingValidateFunc := c.ValidateFunc
-		c.ValidateFunc = func(ctx context.Context, args *Arguments) error {
+		existingValidateArgsFunc := c.ValidateArgsFunc
+		c.ValidateArgsFunc = func(ctx context.Context, args *Arguments) error {
 			if err := validationFunc(ctx, args); err != nil {
 				return err
 			}
@@ -205,11 +209,11 @@ func (c *Command) validateArgumentDefinitions() error {
 				}
 			}
 
-			if existingValidateFunc == nil {
+			if existingValidateArgsFunc == nil {
 				return nil
 			}
 
-			return existingValidateFunc(ctx, args)
+			return existingValidateArgsFunc(ctx, args)
 		}
 	}
 
@@ -322,16 +326,24 @@ func (c *Command) cobraRun(out *OutputWriter) func(*cobra.Command, []string) err
 
 // validateArgumentValues runs the configured count, choice, and custom checks on resolved positional argument values.
 func (c *Command) validateArgumentValues(cmd *cobra.Command, args *Arguments) error {
-	if c.ValidateFunc == nil {
+	if c.ValidateArgsFunc == nil {
 		return nil
 	}
-	if err := c.ValidateFunc(cmd.Context(), args); err != nil {
+	if err := c.ValidateArgsFunc(cmd.Context(), args); err != nil {
 		if e, ok := errors.AsType[Error](err); ok {
 			return e
 		}
 		return Errorf("input validation failed: %v", err)
 	}
 	return nil
+}
+
+// validateFlagValues invokes the early flag-value validator without resolving positional arguments.
+func (c *Command) validateFlagValues(ctx context.Context) error {
+	if c.ValidateFlagsFunc == nil {
+		return nil
+	}
+	return c.ValidateFlagsFunc(ctx)
 }
 
 // validateDefinition checks the command's configuration before initializing its Cobra command.
@@ -366,7 +378,7 @@ func (c *Command) validateDefinition() error {
 }
 
 // init validates and initializes the cobra.Command.
-func (c *Command) init(cmd string, out *OutputWriter, usageTemplate string, config *viper.Viper, syncInheritedConfigAndFlags syncConfigAndFlagsFunc) error {
+func (c *Command) init(cmd string, out *OutputWriter, usageTemplate string, config *viper.Viper, syncInheritedConfigAndFlags syncConfigAndFlagsFunc, validateInheritedFlags ValidateFlagsFunc) error {
 	if err := c.validateDefinition(); err != nil {
 		return err
 	}
@@ -383,6 +395,15 @@ func (c *Command) init(cmd string, out *OutputWriter, usageTemplate string, conf
 		}
 		return c.syncFlags(cmd, config)
 	}
+	// Completion skips command hooks, so collect the ancestor flag validators separately from flag synchronization.
+	validateCompletionFlags := func(ctx context.Context) error {
+		if validateInheritedFlags != nil {
+			if err := validateInheritedFlags(ctx); err != nil {
+				return err
+			}
+		}
+		return c.validateFlagValues(ctx)
+	}
 
 	c.cobraCmd = &cobra.Command{
 		Hidden:            c.Deprecated != nil,
@@ -393,9 +414,12 @@ func (c *Command) init(cmd string, out *OutputWriter, usageTemplate string, conf
 		Long:              c.cobraLong(),
 		GroupID:           c.Group,
 		RunE:              c.cobraRun(out),
-		ValidArgsFunction: c.autocomplete(syncConfigAndFlags),
+		ValidArgsFunction: c.autocomplete(syncConfigAndFlags, validateCompletionFlags),
 		PersistentPreRunE: func(co *cobra.Command, args []string) error {
 			if err := c.syncFlags(co, config); err != nil {
+				return err
+			}
+			if err := c.validateFlagValues(co.Context()); err != nil {
 				return err
 			}
 
@@ -433,7 +457,7 @@ func (c *Command) init(cmd string, out *OutputWriter, usageTemplate string, conf
 
 	commandsAndAliases := make([]string, 0)
 	for _, sub := range c.SubCommands {
-		if err := sub.init(cmd, out, usageTemplate, config, syncConfigAndFlags); err != nil {
+		if err := sub.init(cmd, out, usageTemplate, config, syncConfigAndFlags, validateCompletionFlags); err != nil {
 			return err
 		}
 		c.cobraCmd.AddCommand(sub.cobraCmd)
@@ -517,7 +541,7 @@ func (c *Command) resolveArguments(ctx context.Context, supplied []string, out *
 	return newArguments(definitions, values), nil
 }
 
-func (c *Command) autocomplete(syncConfigAndFlags syncConfigAndFlagsFunc) cobra.CompletionFunc {
+func (c *Command) autocomplete(syncConfigAndFlags syncConfigAndFlagsFunc, validateCompletionFlags ValidateFlagsFunc) cobra.CompletionFunc {
 	if len(c.AutoCompleteExtensions) > 0 {
 		return autocompleteFiles(c.AutoCompleteExtensions)
 	}
@@ -525,7 +549,7 @@ func (c *Command) autocomplete(syncConfigAndFlags syncConfigAndFlagsFunc) cobra.
 	if c.AutoCompleteFunc == nil {
 		for _, arg := range c.Args {
 			if len(arg.Choices) > 0 || arg.ChoicesFunc != nil {
-				return c.autocompleteChoices(syncConfigAndFlags)
+				return c.autocompleteChoices(syncConfigAndFlags, validateCompletionFlags)
 			}
 		}
 		return nil
@@ -540,8 +564,8 @@ func (c *Command) autocomplete(syncConfigAndFlags syncConfigAndFlagsFunc) cobra.
 	}
 }
 
-// autocompleteChoices completes the current argument without running command validation or interactive prompts.
-func (c *Command) autocompleteChoices(syncConfigAndFlags syncConfigAndFlagsFunc) cobra.CompletionFunc {
+// autocompleteChoices validates flag prerequisites and completes the current argument without running ValidateArgsFunc or prompts.
+func (c *Command) autocompleteChoices(syncConfigAndFlags syncConfigAndFlagsFunc, validateCompletionFlags ValidateFlagsFunc) cobra.CompletionFunc {
 	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		index := len(args)
 		if index >= len(c.Args) {
@@ -555,6 +579,9 @@ func (c *Command) autocompleteChoices(syncConfigAndFlags syncConfigAndFlagsFunc)
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		}
 		if err := syncConfigAndFlags(cmd); err != nil {
+			return completionError(cmd, err)
+		}
+		if err := validateCompletionFlags(cmd.Context()); err != nil {
 			return completionError(cmd, err)
 		}
 		resolved, err := c.resolveCompletionChoices(cmd.Context(), args, index)

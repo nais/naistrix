@@ -77,8 +77,8 @@ func TestAutomaticChoiceCompletion(t *testing.T) {
 			app, stdout, _ := newCompletionApplication(t)
 			if err := app.AddCommand(&naistrix.Command{
 				Name: "cmd", Title: "Command", Args: tt.args, RunFunc: completionMustNotRun(t),
-				ValidateFunc: func(context.Context, *naistrix.Arguments) error {
-					t.Error("completion executed ValidateFunc")
+				ValidateArgsFunc: func(context.Context, *naistrix.Arguments) error {
+					t.Error("completion executed ValidateArgsFunc")
 					return nil
 				},
 			}); err != nil {
@@ -209,7 +209,7 @@ func TestDynamicCompletionFlags(t *testing.T) {
 					t.Fatal(err)
 				}
 			case "sticky":
-				parent = &naistrix.Command{Name: "team", Title: "Team", StickyFlags: flags, SubCommands: []*naistrix.Command{cmd}, ValidateFunc: func(context.Context, *naistrix.Arguments) error {
+				parent = &naistrix.Command{Name: "team", Title: "Team", StickyFlags: flags, SubCommands: []*naistrix.Command{cmd}, ValidateArgsFunc: func(context.Context, *naistrix.Arguments) error {
 					t.Error("completion executed parent validation")
 					return nil
 				}}

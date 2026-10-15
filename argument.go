@@ -69,7 +69,7 @@ type Argument struct {
 	ChoicesFunc ArgumentChoicesFunc
 
 	// ChoicesCaseInsensitive accepts [Argument.Choices] regardless of case, using Unicode case folding. Accepted values
-	// are normalized to the configured choice before [ValidateFunc] and [RunFunc] receive them. Choices must be
+	// are normalized to the configured choice before [ValidateArgsFunc] and [RunFunc] receive them. Choices must be
 	// distinct under case-insensitive matching. This also applies to [Argument.ChoicesFunc] results and has no effect
 	// without either source.
 	ChoicesCaseInsensitive bool

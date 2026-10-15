@@ -10,7 +10,7 @@ import (
 	"github.com/nais/naistrix"
 )
 
-func usernameMinLength(n int) naistrix.ValidateFunc {
+func usernameMinLength(n int) naistrix.ValidateArgsFunc {
 	return func(_ context.Context, args *naistrix.Arguments) error {
 		if len(args.Get("username")) < n {
 			return naistrix.Errorf("username must be at least %d characters long", n)
@@ -19,7 +19,7 @@ func usernameMinLength(n int) naistrix.ValidateFunc {
 	}
 }
 
-func usernameLowercase() naistrix.ValidateFunc {
+func usernameLowercase() naistrix.ValidateArgsFunc {
 	return func(_ context.Context, args *naistrix.Arguments) error {
 		for _, r := range args.Get("username") {
 			if unicode.IsUpper(r) {
@@ -30,7 +30,7 @@ func usernameLowercase() naistrix.ValidateFunc {
 	}
 }
 
-func usernameNoSpaces() naistrix.ValidateFunc {
+func usernameNoSpaces() naistrix.ValidateArgsFunc {
 	return func(_ context.Context, args *naistrix.Arguments) error {
 		if strings.ContainsAny(args.Get("username"), " \t") {
 			return naistrix.Errorf("username must not contain whitespace")
@@ -56,7 +56,7 @@ func main() {
 		Args: []naistrix.Argument{
 			{Name: "username"},
 		},
-		ValidateFunc: naistrix.ValidateFuncs(
+		ValidateArgsFunc: naistrix.ValidateArgsFuncs(
 			usernameMinLength(3),
 			usernameLowercase(),
 			usernameNoSpaces(),

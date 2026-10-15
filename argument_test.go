@@ -331,7 +331,7 @@ func TestDynamicArgumentPromptError(t *testing.T) {
 			global.Config = filepath.Join(t.TempDir(), "config.yaml")
 			if err := app.AddCommand(&Command{
 				Name: "cmd", Title: "Command", Args: []Argument{arg},
-				ValidateFunc: func(context.Context, *Arguments) error { t.Error("validation ran after PromptFunc failed"); return nil },
+				ValidateArgsFunc: func(context.Context, *Arguments) error { t.Error("validation ran after PromptFunc failed"); return nil },
 				RunFunc: func(context.Context, *Arguments, *OutputWriter) error {
 					t.Error("RunFunc ran after PromptFunc failed")
 					return nil

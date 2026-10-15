@@ -231,7 +231,7 @@ func (a *Application) AddCommand(cmd *Command, cmds ...*Command) error {
 			return fmt.Errorf("command %q is not allowed to have top-level aliases", c.Name)
 		}
 
-		if err := c.init(a.name, a.output, usageTemplate, a.config, a.syncConfigAndFlagsForCompletion); err != nil {
+		if err := c.init(a.name, a.output, usageTemplate, a.config, a.syncConfigAndFlagsForCompletion, nil); err != nil {
 			return fmt.Errorf("failed to initialize command %q: %w", c.Name, err)
 		}
 

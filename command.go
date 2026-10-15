@@ -58,12 +58,8 @@ type Command struct {
 	ValidateArgsFunc ValidateArgsFunc
 
 	// AutoCompleteFunc sets up a function that will be used to provide auto-completion suggestions for the command.
-	// When unset, [Argument.Choices] and [Argument.ChoicesFunc] provide automatic completion.
+	// When unset, arguments provide automatic choice or file-extension completion.
 	AutoCompleteFunc AutoCompleteFunc
-
-	// AutoCompleteExtensions specifies which file extensions to list in autocompletion. This overrides
-	// [Command.AutoCompleteFunc].
-	AutoCompleteExtensions []string
 
 	// Group places the command in a specific group. This is mainly used for grouping of commands in the help text.
 	Group string
@@ -166,6 +162,9 @@ func (c *Command) validateArgumentDefinitions() error {
 		}
 		if arg.ChoicesFunc != nil && arg.Choices != nil {
 			return fmt.Errorf("argument %q cannot have both Choices and ChoicesFunc", arg.Name)
+		}
+		if len(arg.AutoCompleteExtensions) > 0 && (len(arg.Choices) > 0 || arg.ChoicesFunc != nil) {
+			return fmt.Errorf("argument %q cannot have both AutoCompleteExtensions and Choices or ChoicesFunc", arg.Name)
 		}
 		if err := arg.validateChoiceDefinitions(); err != nil {
 			return err
@@ -553,14 +552,10 @@ func (c *Command) resolveArguments(ctx context.Context, supplied []string, out *
 }
 
 func (c *Command) autocomplete() cobra.CompletionFunc {
-	if len(c.AutoCompleteExtensions) > 0 {
-		return autocompleteFiles(c.AutoCompleteExtensions)
-	}
-
 	if c.AutoCompleteFunc == nil {
 		for _, arg := range c.Args {
-			if len(arg.Choices) > 0 || arg.ChoicesFunc != nil {
-				return c.autocompleteChoices()
+			if len(arg.Choices) > 0 || arg.ChoicesFunc != nil || len(arg.AutoCompleteExtensions) > 0 {
+				return c.autocompleteArguments()
 			}
 		}
 		return nil
@@ -575,9 +570,9 @@ func (c *Command) autocomplete() cobra.CompletionFunc {
 	}
 }
 
-// autocompleteChoices completes the current argument without running ValidateArgsFunc or prompts.
+// autocompleteArguments completes the current argument without running ValidateArgsFunc or interactive prompts.
 // The shared completion wrapper synchronizes and validates flags before this callback runs.
-func (c *Command) autocompleteChoices() cobra.CompletionFunc {
+func (c *Command) autocompleteArguments() cobra.CompletionFunc {
 	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		index := len(args)
 		if index >= len(c.Args) {
@@ -587,12 +582,15 @@ func (c *Command) autocompleteChoices() cobra.CompletionFunc {
 			index = len(c.Args) - 1
 		}
 		arg := c.Args[index]
-		if len(arg.Choices) == 0 && arg.ChoicesFunc == nil {
+		if len(arg.Choices) == 0 && arg.ChoicesFunc == nil && len(arg.AutoCompleteExtensions) == 0 {
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		}
-		resolved, err := c.resolveCompletionChoices(cmd.Context(), args, index)
+		resolved, err := c.resolveCompletionArgument(cmd.Context(), args, index)
 		if err != nil {
 			return completionError(cmd, err)
+		}
+		if len(resolved.AutoCompleteExtensions) > 0 {
+			return completeFiles(resolved.AutoCompleteExtensions, resolved.Prompt)
 		}
 		var completions []string
 		for _, choice := range resolved.Choices {
@@ -607,8 +605,8 @@ func (c *Command) autocompleteChoices() cobra.CompletionFunc {
 	}
 }
 
-// resolveCompletionChoices resolves only earlier arguments and the current choice source, not future arguments.
-func (c *Command) resolveCompletionChoices(ctx context.Context, supplied []string, index int) (*Argument, error) {
+// resolveCompletionArgument resolves earlier arguments and the current argument's choices and help, not future arguments.
+func (c *Command) resolveCompletionArgument(ctx context.Context, supplied []string, index int) (*Argument, error) {
 	definitions := slices.Clone(c.Args[:index+1])
 	values := slices.Clone(supplied[:index])
 	for i := range definitions {

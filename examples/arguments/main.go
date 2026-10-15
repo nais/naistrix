@@ -116,6 +116,17 @@ func main() {
 			out.Printf("Team: %q, members: %v\n", args.Get("team"), strings.Join(args.GetRepeatable("member"), ", "))
 			return nil
 		},
+	}, &naistrix.Command{
+		Name:  "manifests",
+		Title: "Preview an action on manifest files",
+		Args: []naistrix.Argument{
+			{Name: "action", Choices: []string{"apply", "delete"}},
+			{Name: "file", Repeatable: true, AutoCompleteExtensions: []string{"yaml", "yml", "json"}, Prompt: "Select a manifest file"},
+		},
+		RunFunc: func(_ context.Context, args *naistrix.Arguments, out *naistrix.OutputWriter) error {
+			out.Printf("Would %s manifests: %v\n", args.Get("action"), args.GetRepeatable("file"))
+			return nil
+		},
 	})
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "error when adding command: %v\n", err)

@@ -41,7 +41,7 @@ naistrix.Argument{
 }
 ```
 
-Flags are synchronized before the callback runs, and `args` contains only earlier, validated and normalized positional arguments. `Prompt` and `PromptFunc` are mutually exclusive; configuring both is an error. An empty callback result uses the normal default question when prompting and adds no helper text during completion. The same resolved text is used as active help during automatic choice completion.
+Flags are synchronized before the callback runs, and `args` contains only earlier, validated and normalized positional arguments. `Prompt` and `PromptFunc` are mutually exclusive; configuring both is an error. An empty callback result uses the normal default question when prompting and adds no custom helper text during completion. The same resolved text is used as active help during automatic argument completion.
 
 The callback runs only when its argument needs prompting or completion help, at most once per argument per run or completion request. Supplied arguments do not trigger it during execution. Text is resolved afresh each time without changing the command definition. Keep callbacks cheap and side-effect-free; avoid API calls or printing output just to render text.
 
@@ -100,9 +100,26 @@ After enabling shell completion for the application, `Choices` and `ChoicesFunc`
 
 When the current argument has a `Prompt` or `PromptFunc`, automatic choice completion also displays the resolved text as shell active help. For example, the `func` argument above shows "How should the words be transformed?" alongside its choices. Arguments without custom text do not add help text; default interactive questions are not used for completion.
 
-`AutoCompleteExtensions` takes priority, followed by a command's explicit `AutoCompleteFunc`. Automatic choice completion is only used when neither override is configured.
+A command's explicit `AutoCompleteFunc` overrides all automatic argument completion.
 
-For dynamic choices, earlier arguments are validated and normalized, and flag structs are synchronized before calling `ChoicesFunc`. The command's and its ancestors' `ValidateFlagsFunc` callbacks run after synchronization, before `ChoicesFunc` or `PromptFunc`. As during execution, the argument callbacks see only earlier positional arguments, not values already entered for the current repeatable argument. Each completion request resolves a fresh list; callbacks should use the supplied context and avoid printing to standard output.
+### File completion
+
+Set `AutoCompleteExtensions` on each file argument, using extensions without leading dots:
+
+```go
+Args: []naistrix.Argument{
+    {Name: "action", Choices: []string{"apply", "delete"}},
+    {Name: "file", Repeatable: true, AutoCompleteExtensions: []string{"yaml", "yml", "json"}},
+},
+```
+
+The `manifests` command in this example uses this configuration. Completion suggests actions for the first argument and matching files for each subsequent argument. Different file arguments can specify different extensions. Completion stops after all non-repeatable arguments are supplied; unrestricted arguments do not inherit file suggestions from other positions.
+
+The shell performs filename filtering. `Prompt` or `PromptFunc` provides active help; without custom text, completion shows a default file-selection message. File completion does not check whether a supplied path exists or has an allowed extension, and it does not change interactive prompting. An argument cannot combine `AutoCompleteExtensions` with `Choices` or `ChoicesFunc`.
+
+### Completion callbacks and validation
+
+For automatic choice and file completion, earlier arguments are validated and normalized, and flag structs are synchronized before calling `ChoicesFunc`. The command's and its ancestors' `ValidateFlagsFunc` callbacks run after synchronization, before `ChoicesFunc` or `PromptFunc`. As during execution, the argument callbacks see only earlier positional arguments, not values already entered for the current repeatable argument. Each completion request resolves a fresh list; callbacks should use the supplied context and avoid printing to standard output.
 
 Flag validators run before all positional argument completion, including custom `AutoCompleteFunc` handlers and file-extension completion. All global, ancestor, and target-command flag structs are synchronized before validation. Validators run ancestor-first and stop at the first error. They can run repeatedly as the user requests completion, so keep them side-effect-free. Failures appear as completion diagnostics rather than selectable suggestions.
 

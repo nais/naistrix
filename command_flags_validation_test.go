@@ -395,7 +395,7 @@ func TestFlagValidationBeforeExplicitCompletionOverrides(t *testing.T) {
 				AutoCompleteFunc: func(context.Context, *naistrix.Arguments, string) ([]string, string) { return []string{"custom"}, "" },
 			}
 			if mode == "extensions" {
-				cmd.AutoCompleteExtensions = []string{"yaml"}
+				cmd.Args = []naistrix.Argument{{Name: "file", AutoCompleteExtensions: []string{"yaml"}}}
 			}
 			if err := app.AddCommand(cmd); err != nil {
 				t.Fatal(err)
@@ -404,11 +404,7 @@ func TestFlagValidationBeforeExplicitCompletionOverrides(t *testing.T) {
 			if calls != 1 {
 				t.Errorf("validator ran %d times, want once", calls)
 			}
-			if mode == "function" {
-				if !slices.Equal(got, []string{"custom"}) || directive != cobra.ShellCompDirectiveNoFileComp {
-					t.Errorf("suggestions %v, directive %v", got, directive)
-				}
-			} else if !slices.Contains(got, "yaml") || directive != cobra.ShellCompDirectiveFilterFileExt {
+			if !slices.Equal(got, []string{"custom"}) || directive != cobra.ShellCompDirectiveNoFileComp {
 				t.Errorf("suggestions %v, directive %v", got, directive)
 			}
 		})

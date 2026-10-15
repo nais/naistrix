@@ -27,3 +27,11 @@ All tags are optional.
 ## Default values
 
 To set a default value for a flag, simply assign a value to the field in the struct when creating it.
+
+## Completion
+
+Flag types can implement `naistrix.FlagAutoCompleter` or `naistrix.FileAutoCompleter` to provide flag-value completion. Before these callbacks run, Naistrix synchronizes the target command's global, ancestor, and local flag structs from command-line input, configuration, and environment variables. This also applies when a child command completes an inherited global or sticky flag.
+
+Flag-value completion does **not** run `ValidateFlagsFunc`: a required flag may be the very flag the user is trying to complete. Check only the callback's specific prerequisites and return active help if they are missing. For example, completing `--member` may require a selected `--team`, but completing `--team` itself should work before a team is selected.
+
+Before positional argument completion, Naistrix synchronizes all flag structs and runs ancestor-to-child `ValidateFlagsFunc` callbacks. Completion handlers, including `AutoCompleteFunc`, run only if validation succeeds.

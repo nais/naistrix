@@ -50,7 +50,8 @@ type Command struct {
 	RunFunc RunFunc
 
 	// ValidateFlagsFunc runs after this command's flags are synchronized, before resolving argument choices or prompts.
-	// It also runs before automatic choice completion. Parent commands' validators run for their descendants too.
+	// It also runs before positional argument completion, but not flag-value completion. Parent validators run for
+	// their descendants too.
 	ValidateFlagsFunc ValidateFlagsFunc
 
 	// ValidateArgsFunc runs after argument resolution and before [Command.RunFunc]. It is not called during completion.
@@ -378,7 +379,7 @@ func (c *Command) validateDefinition() error {
 }
 
 // init validates and initializes the cobra.Command.
-func (c *Command) init(cmd string, out *OutputWriter, usageTemplate string, config *viper.Viper, syncInheritedConfigAndFlags syncConfigAndFlagsFunc, validateInheritedFlags ValidateFlagsFunc) error {
+func (c *Command) init(cmd string, out *OutputWriter, usageTemplate string, config *viper.Viper, syncInheritedConfigAndFlags syncConfigAndFlagsFunc, validateInheritedFlags ValidateFlagsFunc, preparers completionPreparers) error {
 	if err := c.validateDefinition(); err != nil {
 		return err
 	}
@@ -414,7 +415,7 @@ func (c *Command) init(cmd string, out *OutputWriter, usageTemplate string, conf
 		Long:              c.cobraLong(),
 		GroupID:           c.Group,
 		RunE:              c.cobraRun(out),
-		ValidArgsFunction: c.autocomplete(syncConfigAndFlags, validateCompletionFlags),
+		ValidArgsFunction: preparers.wrapArgumentCompletion(c.autocomplete()),
 		PersistentPreRunE: func(co *cobra.Command, args []string) error {
 			if err := c.syncFlags(co, config); err != nil {
 				return err
@@ -441,6 +442,10 @@ func (c *Command) init(cmd string, out *OutputWriter, usageTemplate string, conf
 			return nil
 		},
 	}
+	preparers[c.cobraCmd] = completionPreparation{
+		syncFlags:     syncConfigAndFlags,
+		validateFlags: validateCompletionFlags,
+	}
 
 	if c.RunFunc == nil {
 		// The internal cobraCmd will always be runnable since we are hijacking the RunE function to make sure an error
@@ -453,17 +458,17 @@ func (c *Command) init(cmd string, out *OutputWriter, usageTemplate string, conf
 		c.cobraCmd.SetUsageTemplate(usageTemplate)
 	}
 
-	if err := setupFlags(c.cobraCmd, c.Args, c.Flags, c.cobraCmd.Flags()); err != nil {
+	if err := setupFlags(c.cobraCmd, c.Args, c.Flags, c.cobraCmd.Flags(), preparers); err != nil {
 		return fmt.Errorf("failed to setup flags: %w", err)
 	}
 
-	if err := setupFlags(c.cobraCmd, c.Args, c.StickyFlags, c.cobraCmd.PersistentFlags()); err != nil {
+	if err := setupFlags(c.cobraCmd, c.Args, c.StickyFlags, c.cobraCmd.PersistentFlags(), preparers); err != nil {
 		return fmt.Errorf("failed to setup persistent flags: %w", err)
 	}
 
 	commandsAndAliases := make([]string, 0)
 	for _, sub := range c.SubCommands {
-		if err := sub.init(cmd, out, usageTemplate, config, syncConfigAndFlags, validateCompletionFlags); err != nil {
+		if err := sub.init(cmd, out, usageTemplate, config, syncConfigAndFlags, validateCompletionFlags, preparers); err != nil {
 			return err
 		}
 		c.cobraCmd.AddCommand(sub.cobraCmd)
@@ -547,7 +552,7 @@ func (c *Command) resolveArguments(ctx context.Context, supplied []string, out *
 	return newArguments(definitions, values), nil
 }
 
-func (c *Command) autocomplete(syncConfigAndFlags syncConfigAndFlagsFunc, validateCompletionFlags ValidateFlagsFunc) cobra.CompletionFunc {
+func (c *Command) autocomplete() cobra.CompletionFunc {
 	if len(c.AutoCompleteExtensions) > 0 {
 		return autocompleteFiles(c.AutoCompleteExtensions)
 	}
@@ -555,7 +560,7 @@ func (c *Command) autocomplete(syncConfigAndFlags syncConfigAndFlagsFunc, valida
 	if c.AutoCompleteFunc == nil {
 		for _, arg := range c.Args {
 			if len(arg.Choices) > 0 || arg.ChoicesFunc != nil {
-				return c.autocompleteChoices(syncConfigAndFlags, validateCompletionFlags)
+				return c.autocompleteChoices()
 			}
 		}
 		return nil
@@ -570,8 +575,9 @@ func (c *Command) autocomplete(syncConfigAndFlags syncConfigAndFlagsFunc, valida
 	}
 }
 
-// autocompleteChoices validates flag prerequisites and completes the current argument without running ValidateArgsFunc or prompts.
-func (c *Command) autocompleteChoices(syncConfigAndFlags syncConfigAndFlagsFunc, validateCompletionFlags ValidateFlagsFunc) cobra.CompletionFunc {
+// autocompleteChoices completes the current argument without running ValidateArgsFunc or prompts.
+// The shared completion wrapper synchronizes and validates flags before this callback runs.
+func (c *Command) autocompleteChoices() cobra.CompletionFunc {
 	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		index := len(args)
 		if index >= len(c.Args) {
@@ -583,12 +589,6 @@ func (c *Command) autocompleteChoices(syncConfigAndFlags syncConfigAndFlagsFunc,
 		arg := c.Args[index]
 		if len(arg.Choices) == 0 && arg.ChoicesFunc == nil {
 			return nil, cobra.ShellCompDirectiveNoFileComp
-		}
-		if err := syncConfigAndFlags(cmd); err != nil {
-			return completionError(cmd, err)
-		}
-		if err := validateCompletionFlags(cmd.Context()); err != nil {
-			return completionError(cmd, err)
 		}
 		resolved, err := c.resolveCompletionChoices(cmd.Context(), args, index)
 		if err != nil {

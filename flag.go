@@ -66,12 +66,16 @@ type FlagAutoCompleter interface {
 	// AutoComplete is called to provide auto-completion suggestions for the flag. If there are no suggestions, an empty
 	// slice should be returned as well as an empty string as active help. If an error occurs during auto-completion,
 	// you can inform the end-user of this by returning an empty slice and an error message as active help.
+	// Global, ancestor, and target-command flags are synchronized before this method. ValidateFlagsFunc is not run,
+	// since required flags may still be missing. Check this callback's specific prerequisites here instead.
 	AutoComplete(ctx context.Context, args *Arguments, toComplete string, flags any) (completions []string, activeHelp string)
 }
 
 // FileAutoCompleter is an interface that can be implemented by flag values to provide auto-completion functionality for
 // a set of file extensions.
 type FileAutoCompleter interface {
+	// FileExtensions is called during flag-value completion after all target flags have been synchronized.
+	// Command-wide ValidateFlagsFunc callbacks are not run during flag-value completion.
 	FileExtensions() (extensions []string)
 }
 
@@ -109,7 +113,7 @@ func setupFlag(name, short, usage string, value any, flags *pflag.FlagSet) error
 	return nil
 }
 
-func setupFlags(cmd *cobra.Command, inputArgs []Argument, flags any, flagSet *pflag.FlagSet) error {
+func setupFlags(cmd *cobra.Command, inputArgs []Argument, flags any, flagSet *pflag.FlagSet, preparers completionPreparers) error {
 	if flags == nil {
 		return nil
 	}
@@ -153,7 +157,7 @@ func setupFlags(cmd *cobra.Command, inputArgs []Argument, flags any, flagSet *pf
 		case FlagAutoCompleter:
 			err := cmd.RegisterFlagCompletionFunc(
 				flagName,
-				func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+				preparers.wrapFlagCompletion(func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 					var existing []string
 					if flag := cmd.Flags().Lookup(flagName); flag != nil {
 						if value, ok := flag.Value.(pflag.SliceValue); ok {
@@ -174,7 +178,7 @@ func setupFlags(cmd *cobra.Command, inputArgs []Argument, flags any, flagSet *pf
 					}
 
 					return filtered, cobra.ShellCompDirectiveNoFileComp
-				},
+				}),
 			)
 			if err != nil {
 				return fmt.Errorf("failed to register auto-completion for flag %q: %w", flagName, err)
@@ -182,7 +186,9 @@ func setupFlags(cmd *cobra.Command, inputArgs []Argument, flags any, flagSet *pf
 		case FileAutoCompleter:
 			_ = cmd.RegisterFlagCompletionFunc(
 				flagName,
-				autocompleteFiles(v.FileExtensions()),
+				preparers.wrapFlagCompletion(func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+					return autocompleteFiles(v.FileExtensions())(cmd, args, toComplete)
+				}),
 			)
 		}
 	}

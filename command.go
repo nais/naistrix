@@ -419,6 +419,12 @@ func (c *Command) init(cmd string, out *OutputWriter, usageTemplate string, conf
 			if err := c.syncFlags(co, config); err != nil {
 				return err
 			}
+
+			if co.HasSubCommands() {
+				// commands with subcommands does not have their own RunFunc, so we can skip validation
+				return nil
+			}
+
 			if err := c.validateFlagValues(co.Context()); err != nil {
 				return err
 			}

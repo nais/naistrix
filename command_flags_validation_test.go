@@ -165,6 +165,64 @@ func TestFlagValidationSources(t *testing.T) {
 	}
 }
 
+func TestParentHelpSkipsValidation(t *testing.T) {
+	for _, target := range [][]string{{"parent"}, {"parent", "nested"}} {
+		for _, failure := range []string{"flags", "arguments", "choices", "missing arguments"} {
+			t.Run(strings.Join(target, "/")+"/"+failure, func(t *testing.T) {
+				app, stdout, _ := newCompletionApplication(t)
+				var calls []string
+				blocked := errors.New("validation must not run for help")
+				leaf := &naistrix.Command{
+					Name: "leaf", Title: "Leaf", RunFunc: func(context.Context, *naistrix.Arguments, *naistrix.OutputWriter) error {
+						calls = append(calls, "run")
+						return blocked
+					},
+				}
+				nested := &naistrix.Command{Name: "nested", Title: "Nested", SubCommands: []*naistrix.Command{leaf}}
+				parent := &naistrix.Command{Name: "parent", Title: "Parent", SubCommands: []*naistrix.Command{nested}}
+				for _, cmd := range []*naistrix.Command{parent, nested} {
+					cmd.ValidateFlagsFunc = func(context.Context) error {
+						calls = append(calls, "flags")
+						if failure == "flags" {
+							return blocked
+						}
+						return nil
+					}
+					cmd.ValidateArgsFunc = func(context.Context, *naistrix.Arguments) error {
+						calls = append(calls, "arguments")
+						return blocked
+					}
+					if failure == "choices" || failure == "missing arguments" {
+						cmd.Args = []naistrix.Argument{{Name: "required"}}
+						if failure == "choices" {
+							cmd.Args[0].ChoicesFunc = func(context.Context, *naistrix.Arguments) ([]string, error) {
+								calls = append(calls, "choices")
+								return nil, blocked
+							}
+						}
+					}
+				}
+				if err := app.AddCommand(parent); err != nil {
+					t.Fatal(err)
+				}
+				if err := app.Run(naistrix.RunWithArgs(target)); err != nil {
+					t.Fatalf("expected help without validation errors, got %v", err)
+				}
+				if len(calls) != 0 {
+					t.Errorf("unexpected callbacks: %v", calls)
+				}
+				childName := "nested"
+				if len(target) > 1 {
+					childName = "leaf"
+				}
+				if !strings.Contains(stdout.String(), "Usage:") || !strings.Contains(stdout.String(), childName) {
+					t.Errorf("expected parent help listing %s, got %q", childName, stdout.String())
+				}
+			})
+		}
+	}
+}
+
 func TestParentFlagValidation(t *testing.T) {
 	for _, mode := range []string{"execution", "completion", "execution failure", "completion failure"} {
 		t.Run(mode, func(t *testing.T) {

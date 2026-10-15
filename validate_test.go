@@ -3,6 +3,7 @@ package naistrix
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 )
 
@@ -98,4 +99,56 @@ func TestValidateArgsFuncs(t *testing.T) {
 			t.Fatalf("expected 'b failed', got %v", err)
 		}
 	})
+}
+
+func TestValidateFlagsFuncs(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		validators []int // Zero entries represent nil callbacks; other values identify invocation order.
+		failAt     int
+		wantCalls  []int
+	}{
+		{name: "no validators"},
+		{name: "only nil validators", validators: []int{0, 0}},
+		{name: "all validators pass in order", validators: []int{1, 2, 3}, wantCalls: []int{1, 2, 3}},
+		{name: "first validator fails", validators: []int{1, 2, 3}, failAt: 1, wantCalls: []int{1}},
+		{name: "later validator fails", validators: []int{1, 2, 3}, failAt: 2, wantCalls: []int{1, 2}},
+		{name: "skip nil validators", validators: []int{0, 1, 0, 2, 0}, wantCalls: []int{1, 2}},
+		{name: "failure after nil validator", validators: []int{0, 1, 2}, failAt: 1, wantCalls: []int{1}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			wantError := errors.New("validation failed")
+			var calls []int
+			var validators []ValidateFlagsFunc
+			for _, id := range tt.validators {
+				if id == 0 {
+					validators = append(validators, nil)
+					continue
+				}
+				validators = append(validators, func(gotCtx context.Context) error {
+					if gotCtx != ctx {
+						t.Error("validator received a different context")
+					}
+					calls = append(calls, id)
+					if id == tt.failAt {
+						return wantError
+					}
+					return nil
+				})
+			}
+			err := ValidateFlagsFuncs(validators...)(ctx)
+			if tt.failAt != 0 {
+				if !errors.Is(err, wantError) {
+					t.Errorf("expected original validation error, got %v", err)
+				}
+			} else if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+			if !slices.Equal(calls, tt.wantCalls) {
+				t.Errorf("validator calls %v, want %v", calls, tt.wantCalls)
+			}
+		})
+	}
 }

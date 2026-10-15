@@ -59,3 +59,20 @@ func ValidateArgsFuncs(fns ...ValidateArgsFunc) ValidateArgsFunc {
 		return nil
 	}
 }
+
+// ValidateFlagsFuncs returns a [ValidateFlagsFunc] that runs the provided validators in order and returns the first
+// error encountered, short-circuiting on failure. Nil entries in fns are skipped. This is useful for composing several
+// smaller, focused validators into a single one with logical AND semantics.
+func ValidateFlagsFuncs(fns ...ValidateFlagsFunc) ValidateFlagsFunc {
+	return func(ctx context.Context) error {
+		for _, fn := range fns {
+			if fn == nil {
+				continue
+			}
+			if err := fn(ctx); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+}

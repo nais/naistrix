@@ -109,17 +109,17 @@ func TestAutomaticCompletionOverrides(t *testing.T) {
 				},
 			}
 			if mode == "file extensions" {
-				cmd.AutoCompleteExtensions = []string{"yaml", "json"}
+				cmd.Args = []naistrix.Argument{{Name: "file", AutoCompleteExtensions: []string{"yaml", "json"}}}
+				cmd.Args[0].PromptFunc = func(context.Context, *naistrix.Arguments) (string, error) {
+					t.Error("explicit override called PromptFunc")
+					return "", nil
+				}
 			}
 			if err := app.AddCommand(cmd); err != nil {
 				t.Fatal(err)
 			}
 			got, directive := requestCompletion(t, app, stdout, "cmd", "")
-			if mode == "custom function" {
-				if !slices.Equal(got, []string{"custom"}) || customCalls != 1 || directive != cobra.ShellCompDirectiveNoFileComp {
-					t.Fatalf("got %v, calls %d, directive %v", got, customCalls, directive)
-				}
-			} else if !slices.Contains(got, "json") || !slices.Contains(got, "yaml") || customCalls != 0 || directive != cobra.ShellCompDirectiveFilterFileExt {
+			if !slices.Equal(got, []string{"custom"}) || customCalls != 1 || directive != cobra.ShellCompDirectiveNoFileComp {
 				t.Fatalf("got %v, calls %d, directive %v", got, customCalls, directive)
 			}
 		})

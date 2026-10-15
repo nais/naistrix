@@ -41,31 +41,31 @@ type Argument struct {
 	Repeatable bool
 
 	// Prompt overrides the default question shown when this argument is missing in an interactive terminal. The prompt
-	// will be prefixed argument position and uppercase name, as in "#1 NAME:". Automatic choice completion also uses
+	// will be prefixed argument position and uppercase name, as in "#1 NAME:". Automatic argument completion also uses
 	// this text as shell active help, without that prefix. Mutually exclusive with [Argument.PromptFunc].
 	Prompt string
 
-	// PromptFunc renders the question for a missing argument and the active help for automatic choice completion. As
+	// PromptFunc renders the question for a missing argument and the active help for automatic argument completion. As
 	// with [Argument.Prompt], interactive questions are prefixed with the argument position and uppercase name. Shell
 	// active help uses the returned text without that prefix.
 	//
 	// Flags are synchronized before it runs, and args contains only earlier validated and normalized arguments. It is
 	// called only when text is needed, at most once per argument per execution or completion request. An empty result
-	// uses the default question when prompting and adds no active help during completion. Mutually exclusive with
-	// [Argument.Prompt].
+	// uses the default question when prompting and adds no custom active help during completion. Mutually exclusive
+	// with [Argument.Prompt].
 	PromptFunc ArgumentPromptFunc
 
 	// Choices lists the valid values for this argument. If empty, any value is allowed. When prompting, these values
 	// are presented as a selectable list instead of a text prompt. They also provide shell completion unless the
-	// command configures [Command.AutoCompleteFunc] or [Command.AutoCompleteExtensions]. Mutually exclusive with
-	// [Argument.ChoicesFunc].
+	// command configures [Command.AutoCompleteFunc]. Mutually exclusive with [Argument.ChoicesFunc] and
+	// [Argument.AutoCompleteExtensions].
 	Choices []string
 
 	// ChoicesFunc resolves allowed values at execution time, after flags are synchronized. Its args contain only
 	// earlier positional arguments, already validated and normalized. The function is called at most once per argument
 	// per execution, including for values supplied on the command line. An empty result means no valid choices. It also
 	// supplies automatic shell completion and may be called again for each completion request. Mutually exclusive with
-	// [Argument.Choices].
+	// [Argument.Choices] and [Argument.AutoCompleteExtensions].
 	ChoicesFunc ArgumentChoicesFunc
 
 	// ChoicesCaseInsensitive accepts [Argument.Choices] regardless of case, using Unicode case folding. Accepted values
@@ -73,6 +73,12 @@ type Argument struct {
 	// distinct under case-insensitive matching. This also applies to [Argument.ChoicesFunc] results and has no effect
 	// without either source.
 	ChoicesCaseInsensitive bool
+
+	// AutoCompleteExtensions offers files with these extensions (without leading dots) during shell completion for this
+	// argument. Repeatable arguments use the same extensions for each value. This does not validate supplied paths or
+	// change interactive prompting. Mutually exclusive with [Argument.Choices] and [Argument.ChoicesFunc]. A command's
+	// explicit [Command.AutoCompleteFunc] overrides automatic file completion.
+	AutoCompleteExtensions []string
 }
 
 // ArgumentChoicesFunc resolves allowed values for an argument using the command context and earlier resolved arguments.

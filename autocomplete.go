@@ -78,18 +78,29 @@ func completionError(cmd *cobra.Command, err error) ([]string, cobra.ShellCompDi
 }
 
 func autocompleteFiles(ext []string) cobra.CompletionFunc {
+	return func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
+		return completeFiles(ext, "")
+	}
+}
+
+// completeFiles leaves filename filtering to the shell and never mutates the configured extension list.
+func completeFiles(ext []string, prompt string) ([]string, cobra.ShellCompDirective) {
 	ext = slices.Clone(ext)
 	slices.Sort(ext)
-	return func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
+	if prompt == "" {
 		helpSuffix := ""
 		if num := len(ext); num > 0 {
 			formatted := make([]string, num)
 			for i, e := range ext {
 				formatted[i] = "*." + e
 			}
-			helpSuffix = " (" + strings.Join(formatted[:num-1], ", ") + " or " + formatted[num-1] + ")"
+			helpSuffix = formatted[0]
+			if num > 1 {
+				helpSuffix = strings.Join(formatted[:num-1], ", ") + " or " + formatted[num-1]
+			}
+			helpSuffix = " (" + helpSuffix + ")"
 		}
-
-		return cobra.AppendActiveHelp(slices.Clone(ext), fmt.Sprintf("Select a file%s.", helpSuffix)), cobra.ShellCompDirectiveFilterFileExt
+		prompt = fmt.Sprintf("Select a file%s.", helpSuffix)
 	}
+	return cobra.AppendActiveHelp(ext, prompt), cobra.ShellCompDirectiveFilterFileExt
 }

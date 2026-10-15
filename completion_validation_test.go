@@ -65,7 +65,7 @@ func TestPositionalCompletionValidatesSynchronizedFlags(t *testing.T) {
 						return []string{"custom"}, ""
 					}
 				case "file extensions":
-					child.AutoCompleteExtensions = []string{"yaml", "json"}
+					child.Args = []naistrix.Argument{{Name: "file", AutoCompleteExtensions: []string{"yaml", "json"}}}
 				}
 				if err := app.AddCommand(&naistrix.Command{
 					Name: "parent", Title: "Parent", StickyFlags: parentFlags,

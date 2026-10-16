@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
@@ -12,7 +11,6 @@ import (
 	"sort"
 
 	"github.com/MakeNowJust/heredoc/v2"
-	"github.com/nais/naistrix/input"
 	"github.com/spf13/viper"
 )
 
@@ -56,17 +54,6 @@ func defaultsSet(config *viper.Viper) *Command {
 			configFilePath := config.ConfigFileUsed()
 			dir := filepath.Dir(configFilePath)
 
-			if _, err := os.Stat(dir); errors.Is(err, fs.ErrNotExist) {
-				if ok, err := input.Confirm(fmt.Sprintf("The directory for the configuration file (%s) does not exist, do you want to create it?", dir)); err != nil {
-					return err
-				} else if !ok {
-					out.Warnln("Directory creation aborted; configuration not saved")
-					return nil
-				}
-			} else if err != nil {
-				return fmt.Errorf("unable to access directory %q for configuration file: %w", dir, err)
-			}
-
 			if err := ensureDirectoryExists(dir); err != nil {
 				return fmt.Errorf("unable to create directory %q for configuration file: %w", dir, err)
 			}
@@ -95,11 +82,12 @@ func defaultsSet(config *viper.Viper) *Command {
 
 func defaultsGet(defaultsCommandName string, config *viper.Viper) *Command {
 	return &Command{
-		Name:             "get",
-		Title:            "Get one or more configuration values.",
-		Description:      "This command retrieves one or more configuration values from the configuration file.",
-		Args:             []Argument{{Name: "key", Repeatable: true}},
-		AutoCompleteFunc: autoCompleteConfigurationKeys(config),
+		Name:        "get",
+		Title:       "Get one or more configuration values.",
+		Description: "This command retrieves one or more configuration values from the configuration file.",
+		Args: []Argument{{
+			Name: "key", Repeatable: true, Prompt: "Select a configuration key", ChoicesFunc: configurationKeyChoices(config),
+		}},
 		RunFunc: func(_ context.Context, args *Arguments, out *OutputWriter) error {
 			settings, err := getSettingsFromConfigFile(config)
 			if err != nil {
@@ -161,11 +149,12 @@ func defaultsList(defaultsCommandName string, config *viper.Viper) *Command {
 
 func defaultsUnset(config *viper.Viper) *Command {
 	return &Command{
-		Name:             "unset",
-		Title:            "Unset one or more configuration values.",
-		Description:      "This command removes one or more configuration values from the configuration file completely.",
-		Args:             []Argument{{Name: "key", Repeatable: true}},
-		AutoCompleteFunc: autoCompleteConfigurationKeys(config),
+		Name:        "unset",
+		Title:       "Unset one or more configuration values.",
+		Description: "This command removes one or more configuration values from the configuration file completely.",
+		Args: []Argument{{
+			Name: "key", Repeatable: true, Prompt: "Select a configuration key", ChoicesFunc: configurationKeyChoices(config),
+		}},
 		RunFunc: func(_ context.Context, args *Arguments, out *OutputWriter) error {
 			settings, err := getSettingsFromConfigFile(config)
 			if err != nil {
@@ -223,33 +212,14 @@ func getSettingsFromConfigFile(config *viper.Viper) (map[string]any, error) {
 	return v.AllSettings(), nil
 }
 
-// autoCompleteConfigurationKeys returns an AutoCompleteFunc that suggests configuration keys from the given config
-// file.
-func autoCompleteConfigurationKeys(config *viper.Viper) AutoCompleteFunc {
-	return func(_ context.Context, args *Arguments, _ string) ([]string, string) {
+// configurationKeyChoices reads persisted keys for validation, interactive selection, and shell completion.
+// Read the file for each request so command defaults and environment variables do not become selectable keys.
+func configurationKeyChoices(config *viper.Viper) ArgumentChoicesFunc {
+	return func(context.Context, *Arguments) ([]string, error) {
 		settings, err := getSettingsFromConfigFile(config)
 		if err != nil {
-			return []string{}, ""
+			return nil, err
 		}
-
-		var inArgs []string
-		if args.Len() > 0 {
-			inArgs = args.GetRepeatable("key")
-		}
-
-		keys := make([]string, 0)
-		for key := range settings {
-			if slices.Contains(inArgs, key) {
-				continue
-			}
-
-			keys = append(keys, key)
-		}
-
-		if len(keys) == 0 {
-			return []string{}, ""
-		}
-
-		return keys, "Available configuration keys"
+		return slices.Sorted(maps.Keys(settings)), nil
 	}
 }

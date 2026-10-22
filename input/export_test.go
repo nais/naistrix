@@ -23,6 +23,29 @@ func DiscardPromptOutputForTest(t *testing.T) (restore func()) {
 	if err != nil {
 		t.Fatalf("failed to open discarded prompt output: %v", err)
 	}
+	return redirectPromptOutputForTest(t, output)
+}
+
+// CapturePromptOutputForTest captures all prompt output. Like DiscardPromptOutputForTest,
+// it changes shared output targets and must not be used in parallel tests.
+func CapturePromptOutputForTest(t *testing.T) (read func() string, restore func()) {
+	t.Helper()
+	output, err := os.CreateTemp(t.TempDir(), "prompt-output-*")
+	if err != nil {
+		t.Fatalf("failed to open captured prompt output: %v", err)
+	}
+	return func() string {
+		t.Helper()
+		data, err := os.ReadFile(output.Name())
+		if err != nil {
+			t.Fatalf("failed to read captured prompt output: %v", err)
+		}
+		return string(data)
+	}, redirectPromptOutputForTest(t, output)
+}
+
+func redirectPromptOutputForTest(t *testing.T, output *os.File) (restore func()) {
+	t.Helper()
 	previousStdout := os.Stdout
 	previousPtermOutput := (pterm.PrefixPrinter{}).GetWriter()
 

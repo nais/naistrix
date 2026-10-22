@@ -60,6 +60,23 @@ func main() {
 			},
 		},
 		&naistrix.Command{
+			Name:  "secret",
+			Title: "Collect sensitive text with asterisk masking.",
+			RunFunc: func(_ context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
+				token, err := input.Secret("API token")
+				if err != nil {
+					return fmt.Errorf("unable to get secret: %w", err)
+				}
+				if token == "" {
+					return naistrix.Errorf("API token must not be empty")
+				}
+
+				// Use the token here without printing or logging it.
+				out.Println("API token received.")
+				return nil
+			},
+		},
+		&naistrix.Command{
 			Name:  "select",
 			Title: "Prompt the user to select a value from a list.",
 			RunFunc: func(_ context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {

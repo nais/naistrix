@@ -1,6 +1,6 @@
 # Gather input from the user
 
-Gathering input from the user is a common task for CLI tools. naistrix has some helper functions to achieve this located in the `github.com/nais/naistrix/pkg/input` package.
+Gathering input from the user is a common task for CLI tools. naistrix has some helper functions to achieve this located in the `github.com/nais/naistrix/input` package.
 
 ## Confirm
 
@@ -41,6 +41,24 @@ err := app.AddCommand(&naistrix.Command{
     // ...
 })
 ```
+
+## Secret
+
+Use `Secret` to collect passwords, API tokens, or other sensitive text with typed characters displayed as `*` instead of the actual input:
+
+```go
+token, err := input.Secret("API token")
+if err != nil {
+    return fmt.Errorf("unable to get secret: %w", err)
+}
+// Use token without printing or logging it.
+```
+
+Masking hides the characters, not the input's length. The returned text is not trimmed; an empty submission returns an empty string. Do not print or log the returned secret.
+
+Like the other input helpers, `Secret` requires interactive standard input and output; otherwise it returns `input.ErrNotInteractive`.
+
+Try it with `go run ./examples/input secret` from the repository root.
 
 ## Select
 

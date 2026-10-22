@@ -1,6 +1,6 @@
 [tools]
 git-cliff = "2.14.2"
-go = "1.27.2"
+go = "1.27.3"
 golangci-lint = "2.14.0"
 
 [settings]

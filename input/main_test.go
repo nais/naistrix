@@ -14,6 +14,9 @@ func TestPrompts_NotInteractive(t *testing.T) {
 	if _, err := input.Input("prompt"); !errors.Is(err, input.ErrNotInteractive) {
 		t.Errorf("Input: expected ErrNotInteractive, got %v", err)
 	}
+	if _, err := input.Secret("prompt"); !errors.Is(err, input.ErrNotInteractive) {
+		t.Errorf("Secret: expected ErrNotInteractive, got %v", err)
+	}
 	if _, err := input.Confirm("prompt"); !errors.Is(err, input.ErrNotInteractive) {
 		t.Errorf("Confirm: expected ErrNotInteractive, got %v", err)
 	}

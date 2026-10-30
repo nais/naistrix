@@ -57,11 +57,20 @@ type Application struct {
 	// defaultsCommandName is the name of the defaults command.
 	defaultsCommandName string
 
+	// defaultsCommandSkipPreRunHooks names hooks to skip for the built-in defaults subtree.
+	defaultsCommandSkipPreRunHooks []string
+
 	// config is the Viper configuration instance used for managing application configuration.
 	config *viper.Viper
 
 	// completionPreparers selects synchronization and validation for the actual target of inherited flag callbacks.
 	completionPreparers completionPreparers
+
+	// commandDefinitions maps executable Cobra commands to their public definitions.
+	commandDefinitions map[*cobra.Command]*Command
+
+	// preRunHooks run before command validation and argument resolution.
+	preRunHooks []PreRunHook
 }
 
 // ApplicationOptionFunc is a function that configures an [Application].
@@ -82,6 +91,14 @@ func ApplicationWithWriter(w io.Writer) ApplicationOptionFunc {
 func ApplicationWithDefaultsCommandName(name string) ApplicationOptionFunc {
 	return func(a *Application) {
 		a.defaultsCommandName = name
+	}
+}
+
+// ApplicationWithDefaultsCommandSkipPreRunHooks appends hook names to skip for the built-in defaults command and all
+// its subcommands.
+func ApplicationWithDefaultsCommandSkipPreRunHooks(names ...string) ApplicationOptionFunc {
+	return func(a *Application) {
+		a.defaultsCommandSkipPreRunHooks = append(a.defaultsCommandSkipPreRunHooks, names...)
 	}
 }
 
@@ -155,10 +172,14 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 		config:              v,
 		defaultsCommandName: "defaults",
 		completionPreparers: make(completionPreparers),
+		commandDefinitions:  make(map[*cobra.Command]*Command),
 	}
 
 	for _, opt := range opts {
 		opt(app)
+	}
+	if err := validatePreRunHooks(app.preRunHooks); err != nil {
+		return nil, nil, err
 	}
 
 	if app.writer == nil {
@@ -187,7 +208,7 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 				pterm.DisableStyling()
 			}
 
-			return nil
+			return app.prepareCommand(cmd)
 		},
 	}
 	app.rootCommand.CompletionOptions.SetDefaultShellCompDirective(cobra.ShellCompDirectiveNoFileComp)
@@ -199,7 +220,9 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 		return nil, nil, fmt.Errorf("failed to setup application flags: %w", err)
 	}
 
-	if err := app.AddCommand(defaultsCommand(app.defaultsCommandName, app.config)); err != nil {
+	defaults := defaultsCommand(app.defaultsCommandName, app.config)
+	defaults.SkipPreRunHooks = app.defaultsCommandSkipPreRunHooks
+	if err := app.AddCommand(defaults); err != nil {
 		return nil, nil, fmt.Errorf("failed to add defaults command: %w", err)
 	}
 
@@ -241,6 +264,7 @@ func (a *Application) AddCommand(cmd *Command, cmds ...*Command) error {
 		}
 
 		a.rootCommand.AddCommand(c.cobraCmd)
+		a.registerCommandDefinitions(c)
 
 		if err := collectTopLevelAliases(c, aliases); err != nil {
 			return fmt.Errorf("failed to collect top-level aliases: %w", err)

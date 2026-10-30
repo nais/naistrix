@@ -118,13 +118,14 @@ func TestPreRunHooksSeeSynchronizedFlags(t *testing.T) {
 			sticky := &struct{ Team string }{}
 			local := &struct{ Member string }{}
 			calls := 0
-			app := newHookApplication(t, PreRunHook{Name: "auth", RunFunc: func(context.Context, *OutputWriter) error {
+			checkFlags := func(context.Context, *OutputWriter) error {
 				calls++
 				if global.Region != "eu" || sticky.Team != "platform" || local.Member != "Alice" {
 					t.Errorf("unsynchronized flags: region=%q, team=%q, member=%q", global.Region, sticky.Team, local.Member)
 				}
 				return nil
-			}})
+			}
+			app := newHookApplication(t, PreRunHook{Name: "auth", RunFunc: checkFlags})
 			args := []string{"parent", "child"}
 			switch source {
 			case "CLI":
@@ -147,15 +148,19 @@ func TestPreRunHooksSeeSynchronizedFlags(t *testing.T) {
 			}
 			if err := app.AddCommand(&Command{
 				Name: "parent", Title: "Parent", StickyFlags: sticky,
-				SubCommands: []*Command{{Name: "child", Title: "Child", Flags: local, RunFunc: hookNoop}},
+				PreRunHooks: []PreRunHook{{Name: "parent", RunFunc: checkFlags}},
+				SubCommands: []*Command{{
+					Name: "child", Title: "Child", Flags: local, RunFunc: hookNoop,
+					PreRunHooks: []PreRunHook{{Name: "child", RunFunc: checkFlags}},
+				}},
 			}); err != nil {
 				t.Fatal(err)
 			}
 			if err := app.Run(RunWithArgs(args)); err != nil {
 				t.Fatal(err)
 			}
-			if calls != 1 {
-				t.Errorf("hook called %d times, want 1", calls)
+			if calls != 3 {
+				t.Errorf("hooks called %d times, want 3", calls)
 			}
 		})
 	}
@@ -268,9 +273,16 @@ func TestPreRunHooksSkipNonExecution(t *testing.T) {
 			}})
 			if err := app.AddCommand(&Command{
 				Name: "cmd", Title: "Command", RunFunc: hookNoop,
+				PreRunHooks: []PreRunHook{{Name: "local", RunFunc: func(context.Context, *OutputWriter) error {
+					calls++
+					return errors.New("unexpected command hook")
+				}}},
 				Args:  []Argument{{Name: "member", Choices: []string{"Alice"}}},
 				Flags: &struct{ Member string }{},
-			}, &Command{Name: "parent", Title: "Parent", SubCommands: []*Command{{Name: "child", Title: "Child", RunFunc: hookNoop}}}); err != nil {
+			}, &Command{Name: "parent", Title: "Parent", PreRunHooks: []PreRunHook{{Name: "parent", RunFunc: func(context.Context, *OutputWriter) error {
+				calls++
+				return errors.New("unexpected parent hook")
+			}}}, SubCommands: []*Command{{Name: "child", Title: "Child", RunFunc: hookNoop}}}); err != nil {
 				t.Fatal(err)
 			}
 			err := app.Run(RunWithArgs(args))

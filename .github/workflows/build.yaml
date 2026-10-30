@@ -19,7 +19,7 @@ permissions:
 jobs:
   release-info:
     name: Generate release info
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     outputs:
       version: ${{ steps.release-info.outputs.version }}
       changelog: ${{ steps.release-info.outputs.changelog }}
@@ -27,10 +27,10 @@ jobs:
       contents: read
       pull-requests: write
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # ratchet:jdx/mise-action@v4
+      - uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # ratchet:jdx/mise-action@v5
       - id: release-info
         run: mise run ci:release-info
         env:
@@ -54,14 +54,14 @@ jobs:
       Run mise task: ${{ matrix.mise-task }}
     needs:
       - release-info
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6
-      - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # ratchet:jdx/mise-action@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
+      - uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # ratchet:jdx/mise-action@v5
       - run: mise run ${{ matrix.mise-task }}
 
   branch-protection-checkpoint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     if: ${{ always() }}
     needs:
       - checks
@@ -74,15 +74,15 @@ jobs:
   tag-and-create-github-release:
     if: github.ref == 'refs/heads/main' && needs.release-info.outputs.changelog != ''
     name: Create new tag and GitHub release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     needs:
       - release-info
       - checks
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6
-      - uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # ratchet:softprops/action-gh-release@v3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
+      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # ratchet:softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.release-info.outputs.version }}
           body: ${{ needs.release-info.outputs.changelog }}

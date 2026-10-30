@@ -49,9 +49,13 @@ type Command struct {
 	// mutually exclusive.
 	RunFunc RunFunc
 
-	// ValidateFlagsFunc runs after this command's flags are synchronized, before resolving argument choices or prompts.
-	// It also runs before positional argument completion, but not flag-value completion. Parent validators run for
-	// their descendants too.
+	// SkipPreRunHooks names application hooks to skip for this command and all its descendants. Other hooks still run
+	// in registration order. See [ApplicationWithPreRunHooks].
+	SkipPreRunHooks []string
+
+	// ValidateFlagsFunc runs after flags are synchronized and application pre-run hooks have run, before resolving
+	// argument choices or prompts. It also runs before positional argument completion, but not flag-value completion.
+	// Parent validators run for their descendants too.
 	ValidateFlagsFunc ValidateFlagsFunc
 
 	// ValidateArgsFunc runs after argument resolution and before [Command.RunFunc]. It is not called during completion.
@@ -416,10 +420,6 @@ func (c *Command) init(cmd string, out *OutputWriter, usageTemplate string, conf
 		RunE:              c.cobraRun(out),
 		ValidArgsFunction: preparers.wrapArgumentCompletion(c.autocomplete()),
 		PersistentPreRunE: func(co *cobra.Command, args []string) error {
-			if err := c.syncFlags(co, config); err != nil {
-				return err
-			}
-
 			if co.HasSubCommands() {
 				// commands with subcommands does not have their own RunFunc, so we can skip validation
 				return nil

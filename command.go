@@ -49,11 +49,18 @@ type Command struct {
 	// mutually exclusive.
 	RunFunc RunFunc
 
-	// SkipPreRunHooks names application hooks to skip for this command and all its descendants. Other hooks still run
-	// in registration order. See [ApplicationWithPreRunHooks].
+	// PreRunHooks adds hooks for this command and all its descendants. Application hooks run first, followed by command
+	// hooks from ancestor to descendant, in registration order within each command. All hooks run after flags on the
+	// entire selected path are synchronized and before validation or argument resolution. Hook names must be unique
+	// along each path, including application hooks, even when skipped. See [PreRunHook] for the execution and error
+	// handling contract.
+	PreRunHooks []PreRunHook
+
+	// SkipPreRunHooks names application or command hooks to skip for this command and all its descendants. Skips are
+	// additive and apply to the entire selected path, including this command's own hooks. Unknown names are ignored.
 	SkipPreRunHooks []string
 
-	// ValidateFlagsFunc runs after flags are synchronized and application pre-run hooks have run, before resolving
+	// ValidateFlagsFunc runs after flags are synchronized and all applicable pre-run hooks have run, before resolving
 	// argument choices or prompts. It also runs before positional argument completion, but not flag-value completion.
 	// Parent validators run for their descendants too.
 	ValidateFlagsFunc ValidateFlagsFunc

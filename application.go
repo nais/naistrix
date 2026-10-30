@@ -232,6 +232,11 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 // AddCommand adds one or more commands to the application.
 func (a *Application) AddCommand(cmd *Command, cmds ...*Command) error {
 	all := append([]*Command{cmd}, cmds...)
+	for _, c := range all {
+		if err := validateCommandPreRunHooks(c, a.name, a.preRunHooks); err != nil {
+			return err
+		}
+	}
 	a.commands = append(a.commands, all...)
 
 	namesAndAliases := make([]string, 0)

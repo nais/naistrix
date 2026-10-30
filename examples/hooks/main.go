@@ -55,6 +55,9 @@ func run() error {
 	if err := app.AddGlobalFlags(flags); err != nil {
 		return err
 	}
+	projectFlags := &struct {
+		Project string `usage:"Demo project to prepare before running a project command."`
+	}{Project: "demo"}
 	if err := app.AddCommand(&naistrix.Command{
 		Name: "members", Title: "Select a member after authentication",
 		Args: []naistrix.Argument{{
@@ -78,6 +81,31 @@ func run() error {
 				return authenticate(ctx, out)
 			},
 		}},
+	}, &naistrix.Command{
+		Name: "projects", Title: "Commands with inherited project setup", StickyFlags: projectFlags,
+		PreRunHooks: []naistrix.PreRunHook{{
+			Name: "project",
+			RunFunc: func(_ context.Context, out *naistrix.OutputWriter) error {
+				out.Printf("Prepared project %s (demo only)\n", projectFlags.Project)
+				return nil
+			},
+		}},
+		SubCommands: []*naistrix.Command{
+			{
+				Name: "show", Title: "Run application authentication, then inherited project setup", TopLevelAliases: []string{"show-project"},
+				RunFunc: func(_ context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
+					out.Printf("Selected project %s\n", projectFlags.Project)
+					return nil
+				},
+			},
+			{
+				Name: "public", Title: "Skip authentication and inherited project setup", SkipPreRunHooks: []string{"auth", "project"},
+				RunFunc: func(_ context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
+					out.Println("No authentication or project setup needed")
+					return nil
+				},
+			},
+		},
 	}); err != nil {
 		return err
 	}

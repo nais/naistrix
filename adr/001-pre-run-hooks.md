@@ -11,11 +11,17 @@ before calling a command's `RunFunc`. Applications such as `nais/cli` may need
 authenticated API access to produce those choices or otherwise prepare prompts.
 Starting authentication inside `RunFunc` is therefore too late.
 
-Authentication is an application-wide concern, but some commands must remain
-available without it. In particular, login commands must be able to start their
-own authentication flow without first passing an authentication prerequisite.
-Other setup concerns may apply to those commands even when authentication does
-not, so opting out must be selective rather than disabling all hooks.
+Setup concerns can apply application-wide or only to particular command domains.
+For example, some commands need Nais credentials, some need Google credentials,
+and some need both or neither. Registering every requirement globally would force
+unrelated commands to opt out and make new commands inherit requirements they
+may not need.
+
+Some commands must remain available without authentication. In particular, login
+commands must be able to start their own authentication flow without first passing
+an authentication prerequisite. Other setup concerns may apply to those commands
+even when authentication does not, so opting out must be selective rather than
+disabling all hooks.
 
 Setup also needs effective configuration and flag values, including inherited
 flags and the selected command's local flags. Help and shell completion must not
@@ -23,33 +29,44 @@ unexpectedly launch an interactive login flow.
 
 ## Decision
 
-Introduce named, application-wide pre-run hooks through
-`ApplicationWithPreRunHooks`. Each `PreRunHook` has a unique, non-blank `Name` and
-a required `RunFunc` of type:
+Introduce named pre-run hooks through `ApplicationWithPreRunHooks` for
+application-wide setup and `Command.PreRunHooks []PreRunHook` for command-scoped
+setup. Hooks registered on a command are inherited by its descendants. Each
+`PreRunHook` has a non-blank `Name` and a required `RunFunc` of type:
 
 ```go
 type PreRunHookFunc func(ctx context.Context, out *OutputWriter) error
 ```
 
-Hooks run in registration order after configuration and flags on the entire
-selected command path have been synchronized, but before Naistrix invokes any
-flag validators, resolves argument choices, prompts for arguments, or validates
+Application hooks run first in registration order. Command hooks then run from
+the outermost ancestor to the selected command, in registration order within
+each command. All hooks run after configuration and flags on the entire selected
+command path have been synchronized, but before Naistrix invokes any flag
+validators, resolves argument choices, prompts for arguments, or validates
 argument values. This makes authentication available to both ancestor callbacks
 and the selected command's input handling.
+
+Hook names must be unique along each command path, including application hooks.
+Names can be reused across sibling or unrelated branches, since those definitions
+cannot execute together. A skipped duplicate is still a definition error: skip
+names identify one hook, rather than silently hiding competing definitions.
 
 Hooks receive only the execution context and the application's output writer.
 They do not receive a command definition: exposing mutable callbacks such as
 `RunFunc` would invite bypassing validation, mutating execution behavior, or
 executing the command twice. Hooks perform setup; Naistrix owns command execution,
-and hook exceptions are declared through opt-outs rather than command-name checks.
+and hook scope and exceptions are declared through registration and opt-outs
+rather than command-name checks.
 They also do not receive resolved positional arguments: producing those arguments
 is work the hook may need to enable. An error stops execution immediately and is
 returned unchanged.
 
-Commands opt out of individual hooks by name through `SkipPreRunHooks`. Opt-outs
-apply to the command and its entire subtree. Descendant opt-outs are additive:
-they can skip more hooks, but cannot re-enable a hook skipped by an ancestor.
-Unlisted hooks still run in their original order. Unknown skip names are ignored.
+Commands opt out of individual application or command hooks by name through
+`SkipPreRunHooks`. Opt-outs apply to the command and its entire subtree. Skips
+from the entire selected path apply to all its hooks, including those declared
+on the skipping command or a descendant. Descendant opt-outs are additive: they
+can skip more hooks, but cannot re-enable a hook skipped by an ancestor. Unlisted
+hooks still run in their original order. Unknown skip names are ignored.
 
 The built-in `defaults` subtree can opt out through
 `ApplicationWithDefaultsCommandSkipPreRunHooks`. This sets the same skip metadata
@@ -60,10 +77,11 @@ automatically and needs no explicit opt-out.
 ### Scope
 
 This decision introduces one early pre-run phase, not a general middleware
-framework. It does not add post-run hooks, deferred cleanup, command-local hook
-registration, or completion hooks. Credential storage, token refresh, login
-mechanisms, and decisions about interactive authentication remain the
-application's responsibility.
+framework. Application and command hooks share one central runner and execution
+phase; there is no separate per-command Cobra callback for running hooks. This
+does not add post-run hooks, deferred cleanup, or completion hooks. Credential
+storage, token refresh, login mechanisms, and decisions about interactive
+authentication remain the application's responsibility.
 
 ## Alternatives considered
 
@@ -85,6 +103,13 @@ application's responsibility.
 - **Use a single anonymous hook or a skip-all boolean.** This is simpler, but
   prevents commands from bypassing authentication while retaining unrelated setup
   such as auditing. Names allow independent hooks and targeted exceptions.
+- **Support only application-wide registration.** Every command would inherit
+  every requirement, requiring widespread opt-outs for unrelated domains.
+  Command-scoped registration makes these prerequisites explicit and reuses the
+  existing path traversal for synchronization and skips.
+- **Override or deduplicate hooks with the same name along a path.** This could
+  hide conflicting definitions or make ordering depend on which registration
+  wins. Reject duplicates instead and place shared hooks at a common ancestor.
 - **Support a full lifecycle or middleware API immediately.** Additional phases,
   cleanup semantics, and context replacement are not needed to solve early
   authentication and would introduce contracts without a concrete use case.
@@ -94,8 +119,9 @@ application's responsibility.
   skips and solves the current need without new command identity or path APIs.
 - **Pass the selected `Command` to hooks.** This could support command-specific
   setup, but exposes mutable definitions and execution callbacks unnecessarily.
-  Declarative skips cover the current need. If a concrete use case later requires
-  command information, read-only invocation metadata can be considered separately.
+  Declarative registration and skips cover the current need. If a concrete use
+  case later requires command information, read-only invocation metadata can be
+  considered separately.
 
 ## API examples
 
@@ -137,6 +163,30 @@ auth := &naistrix.Command{
 
 A runnable demonstration is available in [examples/hooks](../examples/hooks/).
 
+Alternatively, register authentication only on the command subtree that needs
+it. In this example, `auth` is not also registered application-wide:
+
+```go
+projects := &naistrix.Command{
+    Name: "projects",
+    Title: "Project commands",
+    PreRunHooks: []naistrix.PreRunHook{
+        {Name: "auth", RunFunc: ensureAuthenticated},
+    },
+    SubCommands: []*naistrix.Command{
+        {Name: "list", Title: "List projects", RunFunc: listProjects},
+        {
+            Name: "public", Title: "Public information",
+            SkipPreRunHooks: []string{"auth"},
+            RunFunc: publicInformation,
+        },
+    },
+}
+```
+
+The `list` subcommand inherits authentication, while `public` skips it. Other
+application-wide hooks, if present, still run before the command-scoped hooks.
+
 ## Implementation notes
 
 ### Execution ordering
@@ -145,8 +195,10 @@ A runnable demonstration is available in [examples/hooks](../examples/hooks/).
    or version requests retain their normal behavior.
 2. Naistrix loads configuration and synchronizes global flags and all applicable
    command flag structs, ancestor-first. A failure prevents hooks from running.
-3. Naistrix collects skipped hook names from the selected command and its
-   ancestors, then runs the remaining hooks in registration order.
+3. Naistrix collects command hooks and skipped hook names from the selected command
+   and its ancestors. After applying skips, it runs application hooks first,
+   followed by command hooks from ancestor to descendant, preserving registration
+   order within each scope.
 4. The normal ancestor and target validation and argument-resolution pipeline
    continues. Hooks have already completed before any of these callbacks run.
 5. On successful input resolution and validation, Naistrix calls `RunFunc`.
@@ -174,12 +226,17 @@ command path moved ahead of validation.
   Renaming the built-in command does not affect its skips, regardless of option
   order. Unrelated commands with matching leaf names are unaffected.
 - Each `Application.Run` call runs applicable hooks again. Registration order is
-  preserved across multiple `ApplicationWithPreRunHooks` options.
+  preserved across multiple `ApplicationWithPreRunHooks` options. Applicable hooks
+  and skips are recomputed for each execution; no execution state is cached on
+  application or command definitions.
 
 ### Failure and interaction contracts
 
-Duplicate or blank hook names and nil hook functions are application-definition
-errors. Skipping hooks does not bypass flag or argument validation.
+Duplicate or blank hook names and nil hook functions are definition errors.
+`NewApplication` validates application hooks. `AddCommand` validates each effective
+hook path, including inherited application and command hooks, before registering
+the command batch. Skipping a hook does not make an invalid definition valid and
+does not bypass flag or argument validation.
 
 Naistrix does not make hooks interactive-only. They also run when all arguments
 are supplied or execution is non-interactive. Authentication hooks should check
@@ -199,6 +256,9 @@ completion callbacks.
 
 - Applications can enforce authentication before input handling needs protected
   resources, without repeating setup across commands.
+- Command subtrees can opt into prerequisites instead of requiring widespread
+  opt-outs, while application-wide hooks remain available for global concerns.
+- Command inheritance and skips share one path traversal and one execution phase.
 - Hooks can use effective global, inherited, and local flags.
 - Login and other public commands can bypass authentication while retaining
   unrelated setup, with consistent behavior through aliases.
@@ -213,6 +273,8 @@ completion callbacks.
   names are silently ignored. Shared constants can reduce this risk.
 - Inherited skips cannot be reversed by descendants; command trees must place
   exceptions at an appropriate level.
+- Duplicate names on an ancestor/descendant path are rejected instead of
+  deduplicated or overridden. Shared hooks should be placed at a common ancestor.
 - Hooks run before semantic input validation, so authentication may occur even
   when a command will later fail validation.
 - Hooks may run repeatedly in one process. Authentication implementations must

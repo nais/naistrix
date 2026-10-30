@@ -9,15 +9,18 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// PreRunHook is a named application-wide hook for work such as authentication. Hooks run in registration order after
-// configuration and all flags on the selected command path are synchronized, but before flag validation, argument
-// choices, prompts, argument validation, and [Command.RunFunc]. An error stops execution and is returned unchanged.
+// PreRunHook is a named hook for work such as authentication, registered application-wide with
+// [ApplicationWithPreRunHooks] or on a command with [Command.PreRunHooks]. Application hooks run first, followed by
+// command hooks from ancestor to descendant, in registration order within each scope. Hooks run after configuration
+// and all flags on the selected command path are synchronized, but before flag validation, argument choices, prompts,
+// argument validation, and [Command.RunFunc]. An error stops execution and is returned unchanged.
 //
 // Hooks do not run for help, version output, shell completion, or commands that only display subcommands. A top-level
 // alias runs the target command's hooks once. Deprecated commands run hooks before their replacement prompt; an
 // accepted replacement runs its own hooks as a separate command execution.
 type PreRunHook struct {
-	// Name uniquely identifies the hook for [Command.SkipPreRunHooks]. It must not be blank.
+	// Name identifies the hook for [Command.SkipPreRunHooks]. It must be non-blank and unique along each command path,
+	// including application hooks. The same name can be registered on unrelated command branches.
 	Name string
 
 	// RunFunc performs setup before positional arguments are resolved. It must not be nil.
@@ -53,6 +56,22 @@ func validatePreRunHooks(hooks []PreRunHook) error {
 	return nil
 }
 
+// validateCommandPreRunHooks checks each effective hook path before commands are registered. Skips do not make
+// duplicate definitions valid: each name still identifies exactly one hook on a path.
+func validateCommandPreRunHooks(cmd *Command, parent string, inherited []PreRunHook) error {
+	path := parent + " " + cmd.Name
+	hooks := append(slices.Clone(inherited), cmd.PreRunHooks...)
+	if err := validatePreRunHooks(hooks); err != nil {
+		return fmt.Errorf("invalid pre-run hooks for command %q: %w", path, err)
+	}
+	for _, sub := range cmd.SubCommands {
+		if err := validateCommandPreRunHooks(sub, path, hooks); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (a *Application) registerCommandDefinitions(cmd *Command) {
 	a.commandDefinitions[cmd.cobraCmd] = cmd
 	for _, sub := range cmd.SubCommands {
@@ -72,16 +91,18 @@ func (a *Application) prepareCommand(cmd *cobra.Command) error {
 	}
 	slices.Reverse(path)
 	var skipped []string
+	hooks := slices.Clone(a.preRunHooks)
 	for _, definition := range path {
 		if err := definition.syncFlags(cmd, a.config); err != nil {
 			return err
 		}
 		skipped = append(skipped, definition.SkipPreRunHooks...)
+		hooks = append(hooks, definition.PreRunHooks...)
 	}
 	if _, ok := a.commandDefinitions[cmd]; !ok || cmd.HasSubCommands() {
 		return nil
 	}
-	for _, hook := range a.preRunHooks {
+	for _, hook := range hooks {
 		if slices.Contains(skipped, hook.Name) {
 			continue
 		}

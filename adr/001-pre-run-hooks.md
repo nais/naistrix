@@ -73,7 +73,13 @@ on the skipping command or a descendant. Descendant opt-outs are additive: they
 can skip more hooks, but cannot re-enable a hook skipped by an ancestor. Unlisted
 hooks still run in their original order. Unknown skip names are ignored.
 
-For conditional opt-outs, commands can provide `SkipPreRunHooksFunc func() []string`.
+For conditional opt-outs, commands can provide `Command.SkipPreRunHooksFunc` using
+the named callback type:
+
+```go
+type SkipPreRunHooksFunc func() []string
+```
+
 Callbacks run from ancestor to descendant after configuration and **all** flags
 on the selected path are synchronized, but before any hook runs. Each callback
 can close over typed flag structs, including the selected command's local flags,

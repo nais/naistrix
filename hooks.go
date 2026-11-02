@@ -31,6 +31,10 @@ type PreRunHook struct {
 // The context is the one supplied through [RunWithContext], and output should use out.
 type PreRunHookFunc func(ctx context.Context, out *OutputWriter) error
 
+// SkipPreRunHooksFunc returns additional hook names to skip after all flags on the selected command path are
+// synchronized and before any pre-run hooks execute. See [Command.SkipPreRunHooksFunc] for scope and execution rules.
+type SkipPreRunHooksFunc func() []string
+
 // ApplicationWithPreRunHooks appends application-wide hooks in registration order.
 // Commands can opt out of individual hooks using [Command.SkipPreRunHooks] or [Command.SkipPreRunHooksFunc].
 func ApplicationWithPreRunHooks(hooks ...PreRunHook) ApplicationOptionFunc {

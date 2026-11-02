@@ -118,12 +118,25 @@ func TestPreRunHooksSeeSynchronizedFlags(t *testing.T) {
 			sticky := &struct{ Team string }{}
 			local := &struct{ Member string }{}
 			calls := 0
+			var skipCalls []string
 			checkFlags := func(context.Context, *OutputWriter) error {
 				calls++
 				if global.Region != "eu" || sticky.Team != "platform" || local.Member != "Alice" {
 					t.Errorf("unsynchronized flags: region=%q, team=%q, member=%q", global.Region, sticky.Team, local.Member)
 				}
 				return nil
+			}
+			skip := func(name string) func() []string {
+				return func() []string {
+					if calls != 0 {
+						t.Error("skip callback ran after a hook")
+					}
+					if global.Region != "eu" || sticky.Team != "platform" || local.Member != "Alice" {
+						t.Errorf("unsynchronized flags in skip callback: region=%q, team=%q, member=%q", global.Region, sticky.Team, local.Member)
+					}
+					skipCalls = append(skipCalls, name)
+					return nil
+				}
 			}
 			app := newHookApplication(t, PreRunHook{Name: "auth", RunFunc: checkFlags})
 			args := []string{"parent", "child"}
@@ -148,10 +161,12 @@ func TestPreRunHooksSeeSynchronizedFlags(t *testing.T) {
 			}
 			if err := app.AddCommand(&Command{
 				Name: "parent", Title: "Parent", StickyFlags: sticky,
-				PreRunHooks: []PreRunHook{{Name: "parent", RunFunc: checkFlags}},
+				PreRunHooks:         []PreRunHook{{Name: "parent", RunFunc: checkFlags}},
+				SkipPreRunHooksFunc: skip("parent"),
 				SubCommands: []*Command{{
 					Name: "child", Title: "Child", Flags: local, RunFunc: hookNoop,
-					PreRunHooks: []PreRunHook{{Name: "child", RunFunc: checkFlags}},
+					PreRunHooks:         []PreRunHook{{Name: "child", RunFunc: checkFlags}},
+					SkipPreRunHooksFunc: skip("child"),
 				}},
 			}); err != nil {
 				t.Fatal(err)
@@ -161,6 +176,9 @@ func TestPreRunHooksSeeSynchronizedFlags(t *testing.T) {
 			}
 			if calls != 3 {
 				t.Errorf("hooks called %d times, want 3", calls)
+			}
+			if !slices.Equal(skipCalls, []string{"parent", "child"}) {
+				t.Errorf("skip callbacks = %v, want [parent child]", skipCalls)
 			}
 		})
 	}
@@ -267,19 +285,24 @@ func TestPreRunHooksSkipNonExecution(t *testing.T) {
 	} {
 		t.Run(strings.Join(args, "/"), func(t *testing.T) {
 			calls := 0
+			skip := func() []string {
+				calls++
+				return nil
+			}
 			app := newHookApplication(t, PreRunHook{Name: "auth", RunFunc: func(context.Context, *OutputWriter) error {
 				calls++
 				return errors.New("unexpected authentication")
 			}})
 			if err := app.AddCommand(&Command{
 				Name: "cmd", Title: "Command", RunFunc: hookNoop,
+				SkipPreRunHooksFunc: skip,
 				PreRunHooks: []PreRunHook{{Name: "local", RunFunc: func(context.Context, *OutputWriter) error {
 					calls++
 					return errors.New("unexpected command hook")
 				}}},
 				Args:  []Argument{{Name: "member", Choices: []string{"Alice"}}},
 				Flags: &struct{ Member string }{},
-			}, &Command{Name: "parent", Title: "Parent", PreRunHooks: []PreRunHook{{Name: "parent", RunFunc: func(context.Context, *OutputWriter) error {
+			}, &Command{Name: "parent", Title: "Parent", SkipPreRunHooksFunc: skip, PreRunHooks: []PreRunHook{{Name: "parent", RunFunc: func(context.Context, *OutputWriter) error {
 				calls++
 				return errors.New("unexpected parent hook")
 			}}}, SubCommands: []*Command{{Name: "child", Title: "Child", RunFunc: hookNoop}}}); err != nil {
@@ -291,7 +314,7 @@ func TestPreRunHooksSkipNonExecution(t *testing.T) {
 				t.Errorf("error %v, want error: %v", err, wantError)
 			}
 			if calls != 0 {
-				t.Errorf("hook called %d times without command execution", calls)
+				t.Errorf("hook or skip callback called %d times without command execution", calls)
 			}
 		})
 	}

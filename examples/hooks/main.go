@@ -58,6 +58,9 @@ func run() error {
 	projectFlags := &struct {
 		Project string `usage:"Demo project to prepare before running a project command."`
 	}{Project: "demo"}
+	inspectFlags := &struct {
+		Offline bool `usage:"Inspect local data without authentication."`
+	}{}
 	if err := app.AddCommand(&naistrix.Command{
 		Name: "members", Title: "Select a member after authentication",
 		Args: []naistrix.Argument{{
@@ -69,6 +72,22 @@ func run() error {
 		}},
 		RunFunc: func(_ context.Context, args *naistrix.Arguments, out *naistrix.OutputWriter) error {
 			out.Printf("Selected %s\n", args.Get("member"))
+			return nil
+		},
+	}, &naistrix.Command{
+		Name: "inspect", Title: "Inspect data, optionally offline", Flags: inspectFlags,
+		SkipPreRunHooksFunc: func() []string {
+			if inspectFlags.Offline {
+				return []string{"auth"}
+			}
+			return nil
+		},
+		RunFunc: func(_ context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
+			if inspectFlags.Offline {
+				out.Println("Inspecting local data without authentication")
+			} else {
+				out.Println("Inspecting data after authentication")
+			}
 			return nil
 		},
 	}, &naistrix.Command{

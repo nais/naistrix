@@ -60,6 +60,13 @@ type Command struct {
 	// additive and apply to the entire selected path, including this command's own hooks. Unknown names are ignored.
 	SkipPreRunHooks []string
 
+	// SkipPreRunHooksFunc returns additional hook names to skip for this command and its descendants. Callbacks run
+	// from ancestor to descendant after all flags on the selected path are synchronized, before any pre-run hooks.
+	// Returned skips are additive with SkipPreRunHooks and apply to the entire selected path. Unknown names are
+	// ignored. The callback is evaluated on each execution, but not for help, version output, completion, or commands
+	// that only display subcommands. A nil callback adds no skips.
+	SkipPreRunHooksFunc func() []string
+
 	// ValidateFlagsFunc runs after flags are synchronized and all applicable pre-run hooks have run, before resolving
 	// argument choices or prompts. It also runs before positional argument completion, but not flag-value completion.
 	// Parent validators run for their descendants too.

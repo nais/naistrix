@@ -83,6 +83,40 @@ declared on the same command or a descendant. Unlisted hooks still run. Unknown 
 Regular aliases and top-level aliases honor the target command's skips, including
 ancestor skips. A top-level alias runs the target's hooks only once.
 
+### Conditional opt-outs
+
+Use `SkipPreRunHooksFunc` when a skip depends on flag values:
+
+```go
+flags := &struct {
+    Offline bool `usage:"Run without authentication"`
+}{}
+
+&naistrix.Command{
+    Name: "inspect",
+    Title: "Inspect data",
+    Flags: flags,
+    SkipPreRunHooksFunc: func() []string {
+        if flags.Offline {
+            return []string{"auth"}
+        }
+        return nil
+    },
+    RunFunc: inspect,
+}
+```
+
+Callbacks run from ancestor to descendant after **all** flags on the selected path
+are synchronized, before any hooks or validation. They see effective values from
+CLI arguments, configuration, environment, and defaults—not just explicitly supplied
+CLI flags. Returned names are additive with static skips and other callbacks, with
+the same inheritance and alias behavior. Returning `nil` adds no skips and cannot
+re-enable a hook skipped elsewhere. Callbacks are evaluated afresh for every execution;
+do not mutate `SkipPreRunHooks` to make conditional decisions.
+
+Callbacks share the hook exclusions below: they do not run for help, version,
+completion, or commands that only display subcommands.
+
 Hooks do not run for help, version output, shell completion (including flag-value
 completion), completion script generation, or parent commands that only display
 subcommands.
@@ -121,6 +155,10 @@ go run . members Alice --token demo
 # Skips the auth hook and runs the command's own login flow:
 go run . auth login
 go run . login
+
+# Conditionally skips authentication based on a synchronized flag:
+go run . inspect --offline
+go run . inspect --token demo
 
 # Never starts authentication:
 go run . members --help

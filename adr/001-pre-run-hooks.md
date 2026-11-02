@@ -27,6 +27,11 @@ Setup also needs effective configuration and flag values, including inherited
 flags and the selected command's local flags. Help and shell completion must not
 unexpectedly launch an interactive login flow.
 
+Opt-outs can also depend on effective flag values. For example, an inspection
+command may need authentication normally but use only local data with `--offline`.
+Static skip metadata cannot express that distinction, and deciding in flag
+validation is too late because hooks have already run.
+
 ## Decision
 
 Introduce named pre-run hooks through `ApplicationWithPreRunHooks` for
@@ -67,6 +72,24 @@ from the entire selected path apply to all its hooks, including those declared
 on the skipping command or a descendant. Descendant opt-outs are additive: they
 can skip more hooks, but cannot re-enable a hook skipped by an ancestor. Unlisted
 hooks still run in their original order. Unknown skip names are ignored.
+
+For conditional opt-outs, commands can provide `SkipPreRunHooksFunc func() []string`.
+Callbacks run from ancestor to descendant after configuration and **all** flags
+on the selected path are synchronized, but before any hook runs. Each callback
+can close over typed flag structs, including the selected command's local flags,
+without receiving mutable command definitions or depending on Cobra APIs.
+Decisions use effective values from CLI arguments, configuration, environment,
+and defaults; this API does not expose whether a flag was explicitly supplied
+on the command line.
+
+Returned names have the same scope and additive behavior as `SkipPreRunHooks`.
+They can skip application, ancestor, or descendant hooks, but cannot re-enable
+hooks skipped elsewhere. A nil callback or a nil return value adds no skips.
+Callbacks are evaluated afresh for every execution, and their returned names
+are collected as execution-local state rather than appended to command definitions.
+They share the same help, version, completion, and subcommand-listing exclusions
+as hooks. They do not form a separate setup phase: their purpose is only to
+declare conditional skips before the existing pre-run phase.
 
 The built-in `defaults` subtree can opt out through
 `ApplicationWithDefaultsCommandSkipPreRunHooks`. This sets the same skip metadata
@@ -122,6 +145,14 @@ authentication remain the application's responsibility.
   Declarative registration and skips cover the current need. If a concrete use
   case later requires command information, read-only invocation metadata can be
   considered separately.
+- **Mutate `SkipPreRunHooks` after parsing or from another hook.** Mutating a
+  command definition can leak skips into later executions, and using a hook to
+  skip other hooks makes policy depend on hook registration order. A dedicated
+  callback collects execution-local skips before any hooks run.
+- **Put conditional opt-out policy inside shared hooks.** A hook can already
+  inspect captured flags and return early, but command-specific exceptions would
+  then be distributed into shared setup code. Command-level callbacks keep these
+  exceptions with the commands and typed flags that define them.
 
 ## API examples
 
@@ -187,6 +218,30 @@ projects := &naistrix.Command{
 The `list` subcommand inherits authentication, while `public` skips it. Other
 application-wide hooks, if present, still run before the command-scoped hooks.
 
+A command can conditionally skip authentication based on a synchronized flag:
+
+```go
+flags := &struct {
+    Offline bool `usage:"Inspect local data without authentication"`
+}{}
+
+inspect := &naistrix.Command{
+    Name: "inspect",
+    Title: "Inspect data",
+    Flags: flags,
+    SkipPreRunHooksFunc: func() []string {
+        if flags.Offline {
+            return []string{"auth"}
+        }
+        return nil
+    },
+    RunFunc: inspectData,
+}
+```
+
+With `--offline`, the `auth` hook is skipped while unrelated hooks still run.
+Without it, the callback adds no skips; static or inherited skips still apply.
+
 ## Implementation notes
 
 ### Execution ordering
@@ -194,14 +249,18 @@ application-wide hooks, if present, still run before the command-scoped hooks.
 1. Cobra selects the command and parses flags. Parsing errors and explicit help
    or version requests retain their normal behavior.
 2. Naistrix loads configuration and synchronizes global flags and all applicable
-   command flag structs, ancestor-first. A failure prevents hooks from running.
-3. Naistrix collects command hooks and skipped hook names from the selected command
-   and its ancestors. After applying skips, it runs application hooks first,
+   command flag structs, ancestor-first. A failure prevents skip callbacks and
+   hooks from running.
+3. For commands that execute hooks, Naistrix evaluates `SkipPreRunHooksFunc`
+   callbacks from ancestor to descendant in a separate pass after all flag
+   synchronization. Their returned names are combined with static skips from
+   the entire selected path before any hook runs.
+4. After applying skips, Naistrix runs application hooks first,
    followed by command hooks from ancestor to descendant, preserving registration
    order within each scope.
-4. The normal ancestor and target validation and argument-resolution pipeline
+5. The normal ancestor and target validation and argument-resolution pipeline
    continues. Hooks have already completed before any of these callbacks run.
-5. On successful input resolution and validation, Naistrix calls `RunFunc`.
+6. On successful input resolution and validation, Naistrix calls `RunFunc`.
 
 Flag synchronization must not be repeated after hooks in a way that overwrites
 state they established. Registering hooks is optional; applications without hooks
@@ -211,11 +270,11 @@ command path moved ahead of validation.
 ### Special command paths
 
 - Help, version output, shell completion, completion script generation, and
-  parent commands that only display subcommands do not run hooks. This includes
-  both positional and flag-value completion.
+  parent commands that only display subcommands do not run hooks or skip callbacks.
+  This includes both positional and flag-value completion.
 - Regular aliases use the selected command's hooks and opt-outs. Top-level alias
-  wrappers do not run hooks themselves; the resolved target runs them once and
-  retains opt-outs from its original ancestors.
+  wrappers do not run hooks or skip callbacks themselves; the resolved target runs
+  them once and retains opt-outs from its original ancestors.
 - Deprecated commands run hooks before resolving arguments and displaying a
   replacement prompt. Accepting a replacement is a separate command execution,
   with that command's own hooks and opt-outs.
@@ -226,9 +285,9 @@ command path moved ahead of validation.
   Renaming the built-in command does not affect its skips, regardless of option
   order. Unrelated commands with matching leaf names are unaffected.
 - Each `Application.Run` call runs applicable hooks again. Registration order is
-  preserved across multiple `ApplicationWithPreRunHooks` options. Applicable hooks
-  and skips are recomputed for each execution; no execution state is cached on
-  application or command definitions.
+   preserved across multiple `ApplicationWithPreRunHooks` options. Applicable hooks
+   and skips, including callback results, are recomputed for each execution; no
+   execution state is cached on application or command definitions.
 
 ### Failure and interaction contracts
 
@@ -262,6 +321,8 @@ completion callbacks.
 - Hooks can use effective global, inherited, and local flags.
 - Login and other public commands can bypass authentication while retaining
   unrelated setup, with consistent behavior through aliases.
+- Commands can opt out based on effective flags without mutating definitions or
+  embedding command-specific exceptions in shared hooks.
 - Help and completion remain free of unexpected hook-driven interaction.
 - The public API remains independent of Cobra's hook traversal details.
 - The built-in defaults command can bypass authentication without exposing its
@@ -273,6 +334,9 @@ completion callbacks.
   names are silently ignored. Shared constants can reduce this risk.
 - Inherited skips cannot be reversed by descendants; command trees must place
   exceptions at an appropriate level.
+- Conditional skips are decided before semantic flag validation and cannot use
+  resolved positional arguments or state produced by hooks. Callbacks should
+  inspect synchronized flags, not perform setup or assume the values are valid.
 - Duplicate names on an ancestor/descendant path are rejected instead of
   deduplicated or overridden. Shared hooks should be placed at a common ancestor.
 - Hooks run before semantic input validation, so authentication may occur even

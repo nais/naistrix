@@ -31,7 +31,7 @@ approach?** If yes, an ADR is likely useful.
 
 - [ADR-001: Pre-run lifecycle hooks](001-pre-run-hooks.md) — Application-wide and
   inherited command-scoped setup before argument resolution, with deterministic
-  ordering and selective command and subtree opt-outs.
+  ordering and selective static or flag-dependent command and subtree opt-outs.
 
 ## Adding a decision
 

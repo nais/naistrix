@@ -63,6 +63,79 @@ func TestCommandPreRunHookOrderAndSkips(t *testing.T) {
 	}
 }
 
+func TestCommandSkipPreRunHooksFunc(t *testing.T) {
+	var events []string
+	hook := func(name string) PreRunHook {
+		return PreRunHook{Name: name, RunFunc: func(context.Context, *OutputWriter) error {
+			events = append(events, name)
+			return nil
+		}}
+	}
+	flags := &struct{ Offline bool }{}
+	app := newHookApplication(t, hook("auth"), hook("audit"))
+	run := func(context.Context, *Arguments, *OutputWriter) error {
+		events = append(events, "run")
+		return nil
+	}
+	parent := &Command{
+		Name: "parent", Title: "Parent", Aliases: []string{"p"},
+		SkipPreRunHooks: []string{"audit"},
+		SkipPreRunHooksFunc: func() []string {
+			events = append(events, "parent skips")
+			if flags.Offline {
+				// A parent can skip a descendant's hook based on synchronized leaf flags.
+				return []string{"leaf", "unknown"}
+			}
+			return nil
+		},
+		PreRunHooks: []PreRunHook{hook("parent")},
+		SubCommands: []*Command{{
+			Name: "child", Title: "Child", Aliases: []string{"c"}, TopLevelAliases: []string{"execute"}, Flags: flags,
+			PreRunHooks: []PreRunHook{hook("leaf")},
+			SkipPreRunHooksFunc: func() []string {
+				events = append(events, "child skips")
+				if flags.Offline {
+					return []string{"auth", "parent", "leaf"}
+				}
+				return nil
+			},
+			RunFunc: run,
+		}},
+	}
+	if err := app.AddCommand(parent, &Command{Name: "sibling", Title: "Sibling", RunFunc: run}); err != nil {
+		t.Fatal(err)
+	}
+	for _, command := range [][]string{{"parent", "child"}, {"p", "c"}, {"execute"}} {
+		t.Run(strings.Join(command, "/"), func(t *testing.T) {
+			// Re-evaluate the callback without retaining skips between executions.
+			for _, offline := range []string{"true", "false", "true", "false"} {
+				events = nil
+				args := append(slices.Clone(command), "--offline="+offline)
+				if err := app.Run(RunWithArgs(args)); err != nil {
+					t.Fatal(err)
+				}
+				want := []string{"parent skips", "child skips", "run"}
+				if offline == "false" {
+					want = []string{"parent skips", "child skips", "auth", "parent", "leaf", "run"}
+				}
+				if !slices.Equal(events, want) {
+					t.Errorf("offline=%s: events = %v, want %v", offline, events, want)
+				}
+			}
+		})
+	}
+	events = nil
+	if err := app.Run(RunWithArgs([]string{"sibling"})); err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"auth", "audit", "run"}; !slices.Equal(events, want) {
+		t.Errorf("sibling events = %v, want %v", events, want)
+	}
+	if !slices.Equal(parent.SkipPreRunHooks, []string{"audit"}) {
+		t.Errorf("static skips mutated: %v", parent.SkipPreRunHooks)
+	}
+}
+
 func TestCommandPreRunHooksBeforeInputHandling(t *testing.T) {
 	for _, failAt := range []string{"", "parent", "leaf"} {
 		t.Run("failure="+failAt, func(t *testing.T) {

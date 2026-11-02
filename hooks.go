@@ -32,7 +32,7 @@ type PreRunHook struct {
 type PreRunHookFunc func(ctx context.Context, out *OutputWriter) error
 
 // ApplicationWithPreRunHooks appends application-wide hooks in registration order.
-// Commands can opt out of individual hooks using [Command.SkipPreRunHooks].
+// Commands can opt out of individual hooks using [Command.SkipPreRunHooks] or [Command.SkipPreRunHooksFunc].
 func ApplicationWithPreRunHooks(hooks ...PreRunHook) ApplicationOptionFunc {
 	return func(a *Application) {
 		a.preRunHooks = append(a.preRunHooks, hooks...)
@@ -101,6 +101,11 @@ func (a *Application) prepareCommand(cmd *cobra.Command) error {
 	}
 	if _, ok := a.commandDefinitions[cmd]; !ok || cmd.HasSubCommands() {
 		return nil
+	}
+	for _, definition := range path {
+		if definition.SkipPreRunHooksFunc != nil {
+			skipped = append(skipped, definition.SkipPreRunHooksFunc()...)
+		}
 	}
 	for _, hook := range hooks {
 		if slices.Contains(skipped, hook.Name) {

@@ -456,31 +456,31 @@ func TestRepeatableDynamicChoices(t *testing.T) {
 }
 
 func TestDynamicChoicesResolvedForEachExecution(t *testing.T) {
-	app, _, err := naistrix.NewApplication("test", "Test", "v0.0.0", naistrix.ApplicationWithWriter(io.Discard))
-	if err != nil {
-		t.Fatal(err)
-	}
 	lookups := 0
-	var got []string
-	cmd := &naistrix.Command{
-		Name: "test", Title: "Test", DisableArgumentPrompts: true,
-		Args: []naistrix.Argument{
-			{Name: "team", Choices: []string{"Dev", "Ops"}},
-			{Name: "member", ChoicesFunc: func(_ context.Context, prefix *naistrix.Arguments) ([]string, error) {
-				lookups++
-				return map[string][]string{"Dev": {"Alice"}, "Ops": {"Bob"}}[prefix.Get("team")], nil
-			}},
-		},
-		RunFunc: func(_ context.Context, args *naistrix.Arguments, _ *naistrix.OutputWriter) error {
-			got = args.All()
-			return nil
-		},
-	}
-	if err := app.AddCommand(cmd); err != nil {
-		t.Fatal(err)
-	}
 	configPath := filepath.Join(t.TempDir(), "config.yaml")
 	for _, values := range [][]string{{"Dev", "Alice"}, {"Ops", "Bob"}} {
+		app, _, err := naistrix.NewApplication("test", "Test", "v0.0.0", naistrix.ApplicationWithWriter(io.Discard))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got []string
+		cmd := &naistrix.Command{
+			Name: "test", Title: "Test", DisableArgumentPrompts: true,
+			Args: []naistrix.Argument{
+				{Name: "team", Choices: []string{"Dev", "Ops"}},
+				{Name: "member", ChoicesFunc: func(_ context.Context, prefix *naistrix.Arguments) ([]string, error) {
+					lookups++
+					return map[string][]string{"Dev": {"Alice"}, "Ops": {"Bob"}}[prefix.Get("team")], nil
+				}},
+			},
+			RunFunc: func(_ context.Context, args *naistrix.Arguments, _ *naistrix.OutputWriter) error {
+				got = args.All()
+				return nil
+			},
+		}
+		if err := app.AddCommand(cmd); err != nil {
+			t.Fatal(err)
+		}
 		args := append([]string{"test", "--config", configPath}, values...)
 		if err := app.Run(naistrix.RunWithArgs(args)); err != nil {
 			t.Fatal(err)

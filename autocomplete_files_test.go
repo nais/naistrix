@@ -81,25 +81,23 @@ func TestArgumentFileCompletion(t *testing.T) {
 			if err := app.AddCommand(cmd); err != nil {
 				t.Fatal(err)
 			}
-			for range 2 {
-				got, directive := requestCompletion(t, app, stdout, append([]string{"cmd"}, tt.input...)...)
-				wantDirective := cobra.ShellCompDirectiveNoFileComp
-				want := slices.Clone(tt.want)
-				if tt.wantFiles {
-					wantDirective = cobra.ShellCompDirectiveFilterFileExt
-					formatted := make([]string, len(tt.want))
-					for i, ext := range tt.want {
-						formatted[i] = "*." + ext
-					}
-					help := tt.wantHelp
-					if help == "" {
-						help = "Select a file (" + strings.Join(formatted, " or ") + ")."
-					}
-					want = cobra.AppendActiveHelp(want, help)
+			got, directive := requestCompletion(t, app, stdout, append([]string{"cmd"}, tt.input...)...)
+			wantDirective := cobra.ShellCompDirectiveNoFileComp
+			want := slices.Clone(tt.want)
+			if tt.wantFiles {
+				wantDirective = cobra.ShellCompDirectiveFilterFileExt
+				formatted := make([]string, len(tt.want))
+				for i, ext := range tt.want {
+					formatted[i] = "*." + ext
 				}
-				if !slices.Equal(got, want) || directive != wantDirective {
-					t.Fatalf("got %v, directive %v; want %v, directive %v", got, directive, want, wantDirective)
+				help := tt.wantHelp
+				if help == "" {
+					help = "Select a file (" + strings.Join(formatted, " or ") + ")."
 				}
+				want = cobra.AppendActiveHelp(want, help)
+			}
+			if !slices.Equal(got, want) || directive != wantDirective {
+				t.Fatalf("got %v, directive %v; want %v, directive %v", got, directive, want, wantDirective)
 			}
 			for i, arg := range cmd.Args {
 				if !slices.Equal(arg.AutoCompleteExtensions, extensions[i]) {

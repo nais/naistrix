@@ -20,7 +20,12 @@ import (
 	"golang.org/x/term"
 )
 
+// ErrApplicationAlreadyRun is returned when [Application.Run] is called more than once on the same application.
+var ErrApplicationAlreadyRun = errors.New("application has already been run")
+
 // Application represents a CLI application with a set of commands.
+// An application is single-use: call [Application.Run] at most once, even if it returns an error.
+// Applications are not safe for concurrent use.
 type Application struct {
 	// name is the name of the application, used as the root command in the CLI. Can not contain spaces.
 	name string
@@ -49,6 +54,9 @@ type Application struct {
 
 	// rootCommand is the internal cobra.Command that represents the application (the root command).
 	rootCommand *cobra.Command
+
+	// started records whether Run has been called, regardless of its result.
+	started bool
 
 	// executedCommand is the internal cobra.Command that was executed when running the application with the Run()
 	// method.
@@ -133,6 +141,7 @@ func RunWithArgs(args []string) RunOptionFunc {
 
 // NewApplication creates a new [Application] with the given name, title and version. Use the available
 // [ApplicationOptionFunc] functions to configure the application to your needs.
+// Create a new application for each CLI invocation, including in tests.
 func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) (*Application, *GlobalFlags, error) {
 	if n := strings.TrimSpace(name); n == "" || strings.Contains(n, " ") {
 		return nil, nil, fmt.Errorf("application name must not be empty and must not contain spaces, got: %q", name)
@@ -340,8 +349,14 @@ func (a *Application) AddGlobalFlags(flags any) error {
 	return nil
 }
 
-// Run executes the application.
+// Run executes the application. It may be called only once per application, even if it returns an error.
+// Subsequent calls return [ErrApplicationAlreadyRun] without executing commands or applying options.
 func (a *Application) Run(opts ...RunOptionFunc) error {
+	if a.started {
+		return ErrApplicationAlreadyRun
+	}
+	a.started = true
+
 	ro := &runOptions{}
 	for _, opt := range opts {
 		opt(ro)

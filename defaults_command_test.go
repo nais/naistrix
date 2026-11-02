@@ -190,6 +190,7 @@ func TestDefaultsKeyCompletion(t *testing.T) {
 					if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
 						t.Fatal(err)
 					}
+					app, stdout, _ = newCompletionApplication(t)
 				}
 				got, directive := requestCompletion(t, app, stdout, args...)
 				if mode == "empty configuration" {

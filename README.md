@@ -16,6 +16,17 @@ go get github.com/nais/naistrix@latest
 
 Please have a look at the [examples](examples/) directory for usage examples.
 
+### Application lifecycle
+
+An `Application` is single-use: create it, register commands and flags, then call
+`Run` once. A failed run still consumes the application; create a new application
+to retry or execute another invocation, including in tests. Subsequent calls to
+`Run` return `naistrix.ErrApplicationAlreadyRun` without executing commands.
+
+Aliases and deprecated-command replacements are handled within the original run
+and do not require another call to `Run`. Applications are not safe for concurrent
+use.
+
 ## Local development
 
 ### Clone the repository:

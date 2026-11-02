@@ -3,7 +3,10 @@ package naistrix_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -12,6 +15,156 @@ import (
 
 var noop = func(context.Context, *naistrix.Arguments, *naistrix.OutputWriter) error {
 	return nil
+}
+
+func TestApplicationRunIsSingleUse(t *testing.T) {
+	for _, mode := range []string{"success", "command error", "hook error", "configuration error", "flag validation error", "missing argument", "parse error", "unknown command", "help", "version", "completion"} {
+		t.Run(mode, func(t *testing.T) {
+			var output bytes.Buffer
+			app, flags, err := naistrix.NewApplication("singleusetest", "Single-use tests", "v0.0.0", naistrix.ApplicationWithWriter(&output))
+			if err != nil {
+				t.Fatal(err)
+			}
+			flags.Config = filepath.Join(t.TempDir(), "config.yaml")
+			failure := errors.New("test failure")
+			runs := 0
+			cmd := &naistrix.Command{
+				Name: "cmd", Title: "Command",
+				RunFunc: func(context.Context, *naistrix.Arguments, *naistrix.OutputWriter) error {
+					runs++
+					if mode == "command error" {
+						return failure
+					}
+					return nil
+				},
+			}
+			args := []string{"cmd"}
+			wantRuns, wantFailure := 0, false
+			switch mode {
+			case "success":
+				wantRuns = 1
+			case "command error":
+				wantRuns, wantFailure = 1, true
+			case "hook error":
+				cmd.PreRunHooks = []naistrix.PreRunHook{{Name: "fail", RunFunc: func(context.Context, *naistrix.OutputWriter) error { return failure }}}
+				wantFailure = true
+			case "configuration error":
+				if err := os.WriteFile(flags.Config, []byte("invalid: ["), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				wantFailure = true
+			case "flag validation error":
+				cmd.ValidateFlagsFunc = func(context.Context) error { return failure }
+				wantFailure = true
+			case "missing argument":
+				cmd.Args = []naistrix.Argument{{Name: "value"}}
+				cmd.DisableArgumentPrompts = true
+				wantFailure = true
+			case "parse error":
+				args = append(args, "--unknown")
+				wantFailure = true
+			case "unknown command":
+				args = []string{"unknown"}
+				wantFailure = true
+			case "help":
+				args = append(args, "--help")
+			case "version":
+				args = []string{"--version"}
+			case "completion":
+				args = []string{"__complete", "cmd", ""}
+			}
+			if err := app.AddCommand(cmd); err != nil {
+				t.Fatal(err)
+			}
+			err = app.Run(naistrix.RunWithArgs(args))
+			if (err != nil) != wantFailure {
+				t.Fatalf("unexpected first-run error: %v", err)
+			}
+			if (mode == "command error" || mode == "hook error" || mode == "flag validation error") && !errors.Is(err, failure) {
+				t.Fatalf("first-run error was not preserved: %v", err)
+			}
+			firstOutput := output.String()
+			firstCommand := strings.Join(app.ExecutedCommand(), " ")
+			for range 2 {
+				err := app.Run(naistrix.RunWithArgs([]string{"cmd", "--verbose"}))
+				if !errors.Is(err, naistrix.ErrApplicationAlreadyRun) {
+					t.Fatalf("expected ErrApplicationAlreadyRun, got %v", err)
+				}
+			}
+			if runs != wantRuns {
+				t.Errorf("RunFunc called %d times, want %d", runs, wantRuns)
+			}
+			if output.String() != firstOutput || strings.Join(app.ExecutedCommand(), " ") != firstCommand || flags.VerboseLevel != naistrix.OutputVerbosityLevelNormal {
+				t.Error("a rejected run changed output, executed command, or flag values")
+			}
+		})
+	}
+}
+
+func TestApplicationRunRejectsReentry(t *testing.T) {
+	app, flags, err := naistrix.NewApplication("singleusetest", "Single-use tests", "v0.0.0", naistrix.ApplicationWithWriter(&bytes.Buffer{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	flags.Config = filepath.Join(t.TempDir(), "config.yaml")
+	runs := 0
+	if err := app.AddCommand(&naistrix.Command{
+		Name: "cmd", Title: "Command",
+		RunFunc: func(context.Context, *naistrix.Arguments, *naistrix.OutputWriter) error {
+			runs++
+			if err := app.Run(naistrix.RunWithArgs([]string{"cmd"})); !errors.Is(err, naistrix.ErrApplicationAlreadyRun) {
+				t.Errorf("expected reentry to be rejected, got %v", err)
+			}
+			return nil
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.Run(naistrix.RunWithArgs([]string{"cmd"})); err != nil {
+		t.Fatal(err)
+	}
+	if runs != 1 {
+		t.Errorf("RunFunc called %d times, want 1", runs)
+	}
+}
+
+func TestApplicationRunAllowsDeprecatedReplacement(t *testing.T) {
+	app, flags, err := naistrix.NewApplication("singleusetest", "Single-use tests", "v0.0.0", naistrix.ApplicationWithWriter(&bytes.Buffer{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	flags.Config = filepath.Join(t.TempDir(), "config.yaml")
+	var executed []string
+	if err := app.AddCommand(
+		&naistrix.Command{
+			Name: "old", Title: "Original command",
+			RunFunc: func(context.Context, *naistrix.Arguments, *naistrix.OutputWriter) error {
+				executed = append(executed, "old")
+				return &naistrix.DeprecatedCommandError{Replacement: []string{"replacement"}, ExecuteReplacement: true}
+			},
+		},
+		&naistrix.Command{
+			Name: "replacement", Title: "Replacement command",
+			RunFunc: func(context.Context, *naistrix.Arguments, *naistrix.OutputWriter) error {
+				executed = append(executed, "replacement")
+				return nil
+			},
+		},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.Run(naistrix.RunWithArgs([]string{"old"})); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(executed, ","); got != "old,replacement" {
+		t.Errorf("executed %q, want old,replacement", got)
+	}
+	if err := app.Run(naistrix.RunWithArgs([]string{"replacement"})); !errors.Is(err, naistrix.ErrApplicationAlreadyRun) {
+		t.Errorf("expected subsequent run to be rejected, got %v", err)
+	}
+	if len(executed) != 2 {
+		t.Error("a rejected run executed a command")
+	}
 }
 
 // Application with a single command that greets the user.

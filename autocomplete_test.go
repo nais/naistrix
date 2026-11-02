@@ -284,26 +284,29 @@ func TestCompletionErrors(t *testing.T) {
 }
 
 func TestCompletionResolvesChoicesForEachRequest(t *testing.T) {
-	app, stdout, _ := newCompletionApplication(t)
 	calls := 0
-	cmd := &naistrix.Command{
-		Name: "cmd", Title: "Command", Aliases: []string{"alias"}, RunFunc: completionMustNotRun(t),
-		Args: []naistrix.Argument{{Name: "member", ChoicesFunc: func(context.Context, *naistrix.Arguments) ([]string, error) {
-			calls++
-			return []string{fmt.Sprintf("member%d", calls)}, nil
-		}}},
-	}
-	if err := app.AddCommand(cmd); err != nil {
-		t.Fatal(err)
-	}
 	for i, command := range []string{"cmd", "alias"} {
+		app, stdout, _ := newCompletionApplication(t)
+		cmd := &naistrix.Command{
+			Name: "cmd", Title: "Command", Aliases: []string{"alias"}, RunFunc: completionMustNotRun(t),
+			Args: []naistrix.Argument{{Name: "member", ChoicesFunc: func(context.Context, *naistrix.Arguments) ([]string, error) {
+				calls++
+				return []string{fmt.Sprintf("member%d", calls)}, nil
+			}}},
+		}
+		if err := app.AddCommand(cmd); err != nil {
+			t.Fatal(err)
+		}
 		got, directive := requestCompletion(t, app, stdout, command, "")
 		if !slices.Equal(got, []string{fmt.Sprintf("member%d", i+1)}) || directive != cobra.ShellCompDirectiveNoFileComp {
 			t.Fatalf("got %v, directive %v", got, directive)
 		}
+		if cmd.Args[0].Choices != nil {
+			t.Errorf("retained choices %v", cmd.Args[0].Choices)
+		}
 	}
-	if calls != 2 || cmd.Args[0].Choices != nil {
-		t.Errorf("calls %d, retained choices %v", calls, cmd.Args[0].Choices)
+	if calls != 2 {
+		t.Errorf("calls %d, want 2", calls)
 	}
 }
 
@@ -461,17 +464,17 @@ func TestDynamicCompletionPrompt(t *testing.T) {
 }
 
 func TestCompletionPromptRefreshesForEachRequest(t *testing.T) {
-	app, stdout, _ := newCompletionApplication(t)
-	flags := &struct{ Team string }{}
-	if err := app.AddCommand(&naistrix.Command{
-		Name: "cmd", Title: "Command", Flags: flags, RunFunc: completionMustNotRun(t),
-		Args: []naistrix.Argument{{Name: "member", Choices: []string{"alice"}, PromptFunc: func(context.Context, *naistrix.Arguments) (string, error) {
-			return fmt.Sprintf("Member of %s", flags.Team), nil
-		}}},
-	}); err != nil {
-		t.Fatal(err)
-	}
 	for _, team := range []string{"Dev", "Ops"} {
+		app, stdout, _ := newCompletionApplication(t)
+		flags := &struct{ Team string }{}
+		if err := app.AddCommand(&naistrix.Command{
+			Name: "cmd", Title: "Command", Flags: flags, RunFunc: completionMustNotRun(t),
+			Args: []naistrix.Argument{{Name: "member", Choices: []string{"alice"}, PromptFunc: func(context.Context, *naistrix.Arguments) (string, error) {
+				return fmt.Sprintf("Member of %s", flags.Team), nil
+			}}},
+		}); err != nil {
+			t.Fatal(err)
+		}
 		got, _ := requestCompletion(t, app, stdout, "cmd", "--team", team, "")
 		if want := cobra.AppendActiveHelp([]string{"alice"}, "Member of "+team); !slices.Equal(got, want) {
 			t.Errorf("completion = %v, want %v", got, want)

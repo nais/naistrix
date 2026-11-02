@@ -270,11 +270,9 @@ func TestFileFlagCompletionSynchronizesWithoutValidation(t *testing.T) {
 			if err := app.AddCommand(parent); err != nil {
 				t.Fatal(err)
 			}
-			for range 2 {
-				got, directive := requestCompletion(t, app, stdout, "parent", "child", "--config", path, "--file", "")
-				if len(got) != 2 || got[0] != "yaml" || directive != cobra.ShellCompDirectiveFilterFileExt {
-					t.Fatalf("expected synchronized extensions and one help message, got %v, directive %v", got, directive)
-				}
+			got, directive := requestCompletion(t, app, stdout, "parent", "child", "--config", path, "--file", "")
+			if len(got) != 2 || got[0] != "yaml" || directive != cobra.ShellCompDirectiveFilterFileExt {
+				t.Fatalf("expected synchronized extensions and one help message, got %v, directive %v", got, directive)
 			}
 		})
 	}

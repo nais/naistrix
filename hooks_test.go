@@ -241,22 +241,11 @@ func TestSkipPreRunHooks(t *testing.T) {
 			); err != nil {
 				t.Fatal(err)
 			}
-			// Repeated runs must neither retain skip state nor duplicate alias hooks.
-			for range 2 {
-				events = nil
-				if err := app.Run(RunWithArgs(tt.args)); err != nil {
-					t.Fatal(err)
-				}
-				if !slices.Equal(events, tt.want) {
-					t.Errorf("events %v, want %v", events, tt.want)
-				}
-				events = nil
-				if err := app.Run(RunWithArgs([]string{"protected"})); err != nil {
-					t.Fatal(err)
-				}
-				if want := []string{"auth", "setup", "audit"}; !slices.Equal(events, want) {
-					t.Errorf("protected command events %v, want %v", events, want)
-				}
+			if err := app.Run(RunWithArgs(tt.args)); err != nil {
+				t.Fatal(err)
+			}
+			if !slices.Equal(events, tt.want) {
+				t.Errorf("events %v, want %v", events, tt.want)
 			}
 		})
 	}
@@ -481,6 +470,10 @@ func TestDefaultsCommandSkipPreRunHooks(t *testing.T) {
 				}
 
 				// A matching leaf name outside the built-in subtree must not inherit skips.
+				app, _, err = NewApplication("hooktest", "Hook test", "v1.0.0", opts...)
+				if err != nil {
+					t.Fatal(err)
+				}
 				if err := app.AddCommand(&Command{Name: "custom", Title: "Custom", SubCommands: []*Command{
 					{Name: args[0], Title: "Custom operation", RunFunc: hookNoop},
 				}}); err != nil {

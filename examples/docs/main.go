@@ -17,6 +17,10 @@ func main() {
 		"example",
 		"Example CLI for documentation generation",
 		"0.1.0",
+		naistrix.ApplicationWithDefaultsDocumentation(naistrix.DefaultDefinition{
+			Key:         "loud",
+			Description: "Print greetings in uppercase when --loud is omitted.",
+		}),
 	)
 	if err != nil {
 		log.Fatalf("failed to create app: %v", err)

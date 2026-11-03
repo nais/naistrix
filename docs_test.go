@@ -126,6 +126,179 @@ func TestGenerateDocs_StrictModeOutputsMissingDescription(t *testing.T) {
 	}
 }
 
+func TestGenerateDocs_ConfigurationKeys(t *testing.T) {
+	for _, commandName := range []string{"defaults", "config"} {
+		t.Run(commandName, func(t *testing.T) {
+			app, flags, err := naistrix.NewApplication("myapp", "Test configuration docs", "v1.0.0",
+				naistrix.ApplicationWithDefaultsCommandName(commandName),
+				naistrix.ApplicationWithDefaultsDocumentation(
+					naistrix.DefaultDefinition{Key: "zeta", Description: "<warn>Last</warn> setting with **Markdown**."},
+					naistrix.DefaultDefinition{Key: "ALPHA", Description: "Use <info>--alpha</info>.\n\nMore detail with <error>emphasis</error>."},
+				),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := app.AddCommand(&naistrix.Command{
+				Name:  "greet",
+				Title: "Greet someone",
+				Flags: &struct {
+					First string `name:"alpha"`
+					Zeta  string
+				}{},
+				RunFunc: noop,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			flags.Config = filepath.Join(t.TempDir(), "config.yaml")
+			// Docs must not read the user's config, even if it is malformed.
+			contents := "private-local-key: [invalid yaml\n"
+			if err := os.WriteFile(flags.Config, []byte(contents), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			dir := t.TempDir()
+			if err := app.GenerateDocs(naistrix.GenerateDocsWithTargetDir(dir)); err != nil {
+				t.Fatal(err)
+			}
+			listFile := "myapp_" + commandName + "_list.md"
+			content := readFile(t, filepath.Join(dir, "configuration.md"))
+			for _, want := range []string{
+				"title: Configuration",
+				"nav_order: 1.5",
+				"## Configuration",
+				"defaults for matching flags",
+				"### Configuration keys",
+				"Other keys may also be set.",
+				"`alpha`\n: Use <info>--alpha</info>.\n\nMore detail with <error>emphasis</error>.",
+				"`zeta`\n: <warn>Last</warn> setting with **Markdown**.",
+			} {
+				if !strings.Contains(content, want) {
+					t.Errorf("expected %q in generated docs:\n%s", want, content)
+				}
+			}
+			if strings.Index(content, "`alpha`") > strings.Index(content, "`zeta`") {
+				t.Errorf("configuration keys are not sorted:\n%s", content)
+			}
+			if strings.Contains(content, "\nparent:") {
+				t.Errorf("configuration must be a top-level page:\n%s", content)
+			}
+			for _, subcommand := range []string{"set", "get", "list", "unset"} {
+				link := "myapp_" + commandName + "_" + subcommand
+				if !strings.Contains(content, "myapp "+commandName+" "+subcommand) || !strings.Contains(content, "]("+link+")") {
+					t.Errorf("missing link to %s in configuration page:\n%s", subcommand, content)
+				}
+				if _, err := os.Stat(filepath.Join(dir, link+".md")); err != nil {
+					t.Errorf("linked command page does not exist: %v", err)
+				}
+			}
+			listContent := readFile(t, filepath.Join(dir, listFile))
+			if strings.Contains(listContent, "[Configuration](configuration)") {
+				t.Errorf("list page should not include a configuration backlink:\n%s", listContent)
+			}
+			files, err := os.ReadDir(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, file := range files {
+				content := readFile(t, filepath.Join(dir, file.Name()))
+				if strings.Contains(content, "private-local-key") || strings.Contains(content, "\x1b[") {
+					t.Errorf("unexpected config data or terminal escape sequences in %s", file.Name())
+				}
+				if file.Name() != "configuration.md" && (strings.Contains(content, "### Configuration keys") || strings.Contains(content, "<warn>Last</warn>")) {
+					t.Errorf("configuration keys should only appear on the configuration page, found in %s", file.Name())
+				}
+			}
+			if got := readFile(t, flags.Config); got != contents {
+				t.Errorf("doc generation modified configuration: %q", got)
+			}
+		})
+	}
+}
+
+func TestGenerateDocs_NoConfigurationKeys(t *testing.T) {
+	for _, commandName := range []string{"defaults", "config"} {
+		t.Run(commandName, func(t *testing.T) {
+			app, flags, err := naistrix.NewApplication("myapp", "Test configuration docs", "v1.0.0",
+				naistrix.ApplicationWithDefaultsCommandName(commandName),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			flags.Config = filepath.Join(t.TempDir(), "machine-specific", "private-config.yaml")
+			dir := t.TempDir()
+			if err := app.GenerateDocs(naistrix.GenerateDocsWithTargetDir(dir)); err != nil {
+				t.Fatal(err)
+			}
+			content := readFile(t, filepath.Join(dir, "configuration.md"))
+			for _, want := range []string{
+				"title: Configuration",
+				"nav_order: 1.5",
+				"defaults for matching flags",
+				"### Configuration file location",
+				"`$XDG_CONFIG_HOME/myapp/config.yaml`",
+				"`~/.config/myapp/config.yaml`",
+				"when `XDG_CONFIG_HOME` is not set",
+				"`~/Library/Application Support/myapp/config.yaml`",
+				`%AppData%\myapp\config.yaml`,
+				"global `--config <path>` flag",
+				"myapp " + commandName + " list --config /path/to/config.yaml",
+				"Run `myapp " + commandName + " list` to see the actual configuration file path in use.",
+				"### Managing configuration",
+			} {
+				if !strings.Contains(content, want) {
+					t.Errorf("missing %q in configuration page:\n%s", want, content)
+				}
+			}
+			if strings.Contains(content, flags.Config) || strings.Contains(content, "private-config.yaml") {
+				t.Errorf("configuration page leaked a machine-specific path:\n%s", content)
+			}
+			if strings.Contains(content, "### Configuration keys") {
+				t.Errorf("unexpected empty keys section:\n%s", content)
+			}
+			for _, subcommand := range []string{"set", "get", "list", "unset"} {
+				link := "myapp_" + commandName + "_" + subcommand
+				if !strings.Contains(content, "]("+link+")") {
+					t.Errorf("missing link to %s in configuration page:\n%s", subcommand, content)
+				}
+				if _, err := os.Stat(filepath.Join(dir, link+".md")); err != nil {
+					t.Errorf("linked command page does not exist: %v", err)
+				}
+			}
+			content = readFile(t, filepath.Join(dir, "myapp_"+commandName+"_list.md"))
+			if strings.Contains(content, "[Configuration](configuration)") {
+				t.Errorf("list page should not include a configuration backlink:\n%s", content)
+			}
+		})
+	}
+}
+
+func TestGenerateDocs_ValidatesDocumentedFlagsBeforeWriting(t *testing.T) {
+	app, _, err := naistrix.NewApplication("myapp", "Test configuration docs", "v1.0.0",
+		naistrix.ApplicationWithDefaultsDocumentation(naistrix.DefaultDefinition{Key: "team", Description: "Default team."}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(t.TempDir(), "docs")
+	err = app.GenerateDocs(naistrix.GenerateDocsWithTargetDir(dir))
+	if want := `documented configuration key "team" does not match any registered flag`; err == nil || err.Error() != want {
+		t.Fatalf("expected %q, got %v", want, err)
+	}
+	if _, err := os.Stat(dir); !os.IsNotExist(err) {
+		t.Errorf("invalid documentation should not create the output directory: %v", err)
+	}
+	if err := app.AddGlobalFlags(&struct{ Team string }{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.GenerateDocs(naistrix.GenerateDocsWithTargetDir(dir)); err != nil {
+		t.Fatalf("expected docs generation to succeed after registering the flag: %v", err)
+	}
+	// GenerateDocs must not consume the application invocation.
+	if err := app.Run(naistrix.RunWithArgs([]string{"--help"})); err != nil {
+		t.Fatalf("expected Run to remain available after doc generation: %v", err)
+	}
+}
+
 func newTestApp(t *testing.T) *naistrix.Application {
 	t.Helper()
 	app, _, err := naistrix.NewApplication("myapp", "My test application", "v1.0.0")

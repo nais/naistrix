@@ -15,6 +15,9 @@ import (
 //go:embed templates/command.md.tmpl
 var commandTemplate string
 
+//go:embed templates/configuration.md.tmpl
+var configurationTemplate string
+
 // generateDocsOptions holds the configuration options for generating documentation.
 type generateDocsOptions struct {
 	// targetDir is the directory where the generated documentation files will be saved, defaults to $CWD/docs.
@@ -84,6 +87,21 @@ type commandTemplateData struct {
 	// TODO: top level aliases, groups, more?
 }
 
+// configurationTemplateData holds application-wide configuration documentation, without reading local settings.
+type configurationTemplateData struct {
+	// ApplicationName is used to describe portable default configuration file paths.
+	ApplicationName string
+
+	// DefaultsCommand is the full command path for managing defaults, including the application name.
+	DefaultsCommand string
+
+	// DefaultsCommandLink is the filename prefix for defaults command pages, without a file extension.
+	DefaultsCommandLink string
+
+	// Keys contains documented configuration keys, normalized to lowercase and sorted by name.
+	Keys []DefaultDefinition
+}
+
 // commandTemplateDataFlag represents a command flag (option).
 type commandTemplateDataFlag struct {
 	// Name is the name of the flag, including the leading --.
@@ -109,6 +127,8 @@ type commandTemplateDataExample struct {
 //
 // By default, the generated documentation will be placed in a "./docs" directory in the current directory. The target
 // directory can be changed using the [GenerateDocsWithTargetDir] option.
+// Documented defaults keys must match registered flags, just as when calling [Application.Run].
+// A top-level configuration.md page is always generated, including documented defaults keys when registered.
 func (a *Application) GenerateDocs(opts ...GenerateDocsOptionFunc) error {
 	options := &generateDocsOptions{
 		targetDir:    "docs",
@@ -118,6 +138,9 @@ func (a *Application) GenerateDocs(opts ...GenerateDocsOptionFunc) error {
 
 	for _, o := range opts {
 		o(options)
+	}
+	if err := a.validateDocumentedFlags(); err != nil {
+		return err
 	}
 
 	if err := os.MkdirAll(options.targetDir, 0o750); err != nil {
@@ -138,7 +161,42 @@ func (a *Application) GenerateDocs(opts ...GenerateDocsOptionFunc) error {
 			return fmt.Errorf("failed to generate docs for command %q: %v", cmd.Name, err)
 		}
 	}
+	if err := a.generateConfigurationDocs(root); err != nil {
+		return fmt.Errorf("failed to generate configuration docs: %w", err)
+	}
 
+	return nil
+}
+
+func (a *Application) generateConfigurationDocs(root *os.Root) error {
+	definitions := slices.Clone(a.defaultDefinitions)
+	for i := range definitions {
+		definitions[i].Key = strings.ToLower(definitions[i].Key)
+	}
+	slices.SortFunc(definitions, func(a, b DefaultDefinition) int {
+		return strings.Compare(a.Key, b.Key)
+	})
+	command := a.name + " " + a.defaultsCommandName
+	data := configurationTemplateData{
+		ApplicationName:     a.name,
+		DefaultsCommand:     command,
+		DefaultsCommandLink: strings.ReplaceAll(command, " ", "_"),
+		Keys:                definitions,
+	}
+	tmpl, err := template.New("configuration").Parse(configurationTemplate)
+	if err != nil {
+		return fmt.Errorf("failed to parse template: %w", err)
+	}
+	f, err := root.Create("configuration.md")
+	if err != nil {
+		return fmt.Errorf("failed to create configuration.md: %w", err)
+	}
+	defer func() {
+		_ = f.Close()
+	}()
+	if err := tmpl.Execute(f, data); err != nil {
+		return fmt.Errorf("failed to execute template: %w", err)
+	}
 	return nil
 }
 

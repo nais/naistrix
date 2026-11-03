@@ -8,32 +8,68 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"sort"
+	"strings"
+	"unicode"
 
 	"github.com/MakeNowJust/heredoc/v2"
+	"github.com/nais/naistrix/internal/color"
 	"github.com/spf13/viper"
 )
 
+// DefaultDefinition documents a configuration key. It neither assigns a default value nor restricts accepted values.
+type DefaultDefinition struct {
+	// Key must match the name of a registered flag. [Application.Run] validates this after registration. Keys are
+	// case-insensitive and displayed in lowercase, matching configuration file keys.
+	Key string
+
+	// Description explains what the setting does and when it applies. Formatting tags are rendered by defaults list and
+	// stripped from shell completion.
+	Description string
+}
+
+func validateDefaultDefinitions(definitions []DefaultDefinition) error {
+	seen := make(map[string]bool, len(definitions))
+	for _, definition := range definitions {
+		if definition.Key == "" || strings.ContainsFunc(definition.Key, unicode.IsSpace) {
+			return fmt.Errorf("documented configuration key must not be empty or contain whitespace, got: %q", definition.Key)
+		}
+		key := strings.ToLower(definition.Key)
+		if seen[key] {
+			return fmt.Errorf("duplicate documented configuration key: %q", definition.Key)
+		}
+		seen[key] = true
+		if strings.TrimSpace(definition.Description) == "" {
+			return fmt.Errorf("documented configuration key %q is missing a description", definition.Key)
+		}
+	}
+	return nil
+}
+
 // defaultsCommand creates the built-in defaults command for managing default flags for a user.
-func defaultsCommand(commandName string, config *viper.Viper) *Command {
+func defaultsCommand(commandName string, config *viper.Viper, definitions []DefaultDefinition) *Command {
+	definitions = slices.Clone(definitions)
+	for i := range definitions {
+		definitions[i].Key = strings.ToLower(definitions[i].Key)
+	}
 	return &Command{
 		Name:  commandName,
 		Title: "Manage default flag values.",
 		Description: heredoc.Docf(`
-			The %s command allows you to set, get, unset and list values stored in the configuration file.
+			The %[1]s command allows you to set, get, unset and list values stored in the configuration file.
 
-			Configuration values acts as defaults for various flags throughout the application.
+			Configuration values act as defaults for various flags throughout the application.
+			Use %[1]s list to see stored values and documented settings. Other keys may also be set.
 		`, commandName),
 		SubCommands: []*Command{
-			defaultsSet(config),
+			defaultsSet(config, definitions),
 			defaultsGet(commandName, config),
-			defaultsList(commandName, config),
+			defaultsList(commandName, config, definitions),
 			defaultsUnset(config),
 		},
 	}
 }
 
-func defaultsSet(config *viper.Viper) *Command {
+func defaultsSet(config *viper.Viper, definitions []DefaultDefinition) *Command {
 	return &Command{
 		Name: "set",
 		Args: []Argument{
@@ -41,14 +77,35 @@ func defaultsSet(config *viper.Viper) *Command {
 			{Name: "value"},
 		},
 		Title:       "Set a configuration value.",
-		Description: "Set a configuration value in the configuration file. This value will be used as default for relevant flags throughout the application.",
-		AutoCompleteFunc: func(_ context.Context, args *Arguments, _ string) ([]string, string) {
-			settings, err := getSettingsFromConfigFile(config)
-			if err != nil {
-				return []string{}, ""
+		Description: "Set a configuration value in the configuration file. This value will be used as default for relevant flags throughout the application. Suggested keys include documented settings and existing configuration keys. Other keys may also be set.",
+		AutoCompleteFunc: func(_ context.Context, args *Arguments, toComplete string) ([]string, string) {
+			if args.Len() > 0 {
+				return nil, ""
 			}
 
-			return slices.Collect(maps.Keys(settings)), "Choose an existing key or create a new one"
+			keys := make(map[string]string, len(definitions))
+			for _, definition := range definitions {
+				// Shell completion descriptions must be plain text on one line.
+				description := strings.Join(strings.Fields(definition.Description), " ")
+				keys[definition.Key] = color.StripTags(description)
+			}
+			settings, err := getSettingsFromConfigFile(config)
+			if err != nil {
+				return nil, err.Error()
+			}
+			for key := range settings {
+				if _, ok := keys[key]; !ok {
+					keys[key] = "Currently configured; no documentation available."
+				}
+			}
+			var completions []string
+			for _, key := range slices.Sorted(maps.Keys(keys)) {
+				if strings.HasPrefix(key, toComplete) {
+					completions = append(completions, key+"\t"+keys[key])
+				}
+			}
+
+			return completions, "Choose a suggested key or enter another key"
 		},
 		RunFunc: func(_ context.Context, args *Arguments, out *OutputWriter) error {
 			configFilePath := config.ConfigFileUsed()
@@ -109,38 +166,56 @@ func defaultsGet(defaultsCommandName string, config *viper.Viper) *Command {
 	}
 }
 
-func defaultsList(defaultsCommandName string, config *viper.Viper) *Command {
+func defaultsList(defaultsCommandName string, config *viper.Viper, definitions []DefaultDefinition) *Command {
 	return &Command{
 		Name:        "list",
 		Title:       "List configuration values.",
-		Description: "List all configuration values found in the configuration file.",
+		Description: "List stored configuration values and documented keys, including keys that have not been set. Stored values do not include environment overrides or built-in flag defaults. Other keys may also be set.",
 		RunFunc: func(_ context.Context, _ *Arguments, out *OutputWriter) error {
 			settings, err := getSettingsFromConfigFile(config)
 			if err != nil {
 				return fmt.Errorf("unable to read configuration file: %w", err)
 			}
 
-			if len(settings) == 0 {
+			if len(settings) == 0 && len(definitions) == 0 {
 				out.Printf("The configuration file <info>%s</info> is empty, or it does not yet exist\n", config.ConfigFileUsed())
 				out.Printf("Use the <info>%s set <key> <value></info> command to set configuration values\n", defaultsCommandName)
 				return nil
 			}
 
-			values := make([][]string, 0)
-			for k, v := range settings {
-				values = append(values, []string{k, fmt.Sprint(v)})
+			descriptions := make(map[string]string, len(settings)+len(definitions))
+			for key := range settings {
+				descriptions[key] = "—"
 			}
-
-			sort.SliceStable(values, func(i, j int) bool {
-				if len(values[i]) == 0 || len(values[j]) == 0 {
-					return false
+			for _, definition := range definitions {
+				descriptions[definition.Key] = definition.Description
+			}
+			headers := []string{"Key", "Stored value"}
+			if len(definitions) > 0 {
+				headers = append(headers, "Description")
+			}
+			values := [][]string{headers}
+			for _, key := range slices.Sorted(maps.Keys(descriptions)) {
+				value := "(not set)"
+				if stored, ok := settings[key]; ok {
+					value = fmt.Sprint(stored)
+					if value == "" {
+						value = `""`
+					}
 				}
-				return values[i][0] < values[j][0]
-			})
-
-			values = append([][]string{{"Key", "Value"}}, values...)
-			out.Printf("The following configuration values are set in <info>%s</info>:\n\n", config.ConfigFileUsed())
-			_ = out.Table().Render(values)
+				row := []string{key, value}
+				if len(definitions) > 0 {
+					row = append(row, descriptions[key])
+				}
+				values = append(values, row)
+			}
+			out.Printf("Configuration keys and values stored in <info>%s</info>:\n\n", config.ConfigFileUsed())
+			if err := out.Table().Render(values); err != nil {
+				return err
+			}
+			if len(definitions) > 0 {
+				out.Println("\n(not set) means no value is stored in the configuration file. Other keys may also be set.")
+			}
 			out.Printf("\nUse the <info>%[1]s set <key> <value></info> command to update or create values, or the <info>%[1]s unset <key>[, <key>]</info> command to remove values\n", defaultsCommandName)
 			return nil
 		},

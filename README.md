@@ -70,6 +70,8 @@ mise run
 
 Once you have made your changes and committed them, push your branch and make a pull request against the `main` branch.
 
+Use a Conventional Commit title for the pull request as well, for example `feat: document configuration keys`. When squash-merging, keep the final squash commit title conventional: release generation reads that title, not the individual commit messages included in its body.
+
 ## License
 
 MIT, see [LICENSE.txt](LICENSE.txt) for details.

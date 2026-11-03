@@ -12,6 +12,7 @@ Naistrix is an opinionated Go library for building CLI applications, wrapping [C
 - **Color & Styling**: Use the `internal/color` package for colorized output with custom tags (e.g., `<info>`, `<warn>`, `<error>`).
 
 ## Developer Workflow
+- **Branches**: Make changes and commits on a descriptive feature, fix, or docs branch, not directly on `main` or another default/protected branch. Check the current branch before committing; create a branch first if necessary. Keep using an appropriate existing task branch. Only commit directly to a default/protected branch if the user explicitly requests it.
 - **Dependency & Task Management**: Uses [mise](https://mise.jdx.dev/) for tool and task management. See `mise/config.toml` and `mise/tasks/`.
 - **Common Tasks**:
   - `mise run build`: Build all Go code (`mise/tasks/build.sh`)
@@ -45,4 +46,3 @@ Naistrix is an opinionated Go library for building CLI applications, wrapping [C
 
 ---
 For more, see [README.md] and the `examples/` directory for practical usage patterns.
-

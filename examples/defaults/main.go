@@ -14,18 +14,28 @@ func main() {
 		"Example application with a renamed defaults command",
 		"v0.0.0",
 		naistrix.ApplicationWithDefaultsCommandName("config"),
+		naistrix.ApplicationWithDefaultsDocumentation(
+			naistrix.DefaultDefinition{
+				Key:         "greeting",
+				Description: "Greeting to use when --greeting is omitted from the greet command.",
+			},
+		),
 	)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "error when creating application: %v\n", err)
 		os.Exit(1)
 	}
 
+	flags := &struct {
+		Greeting string `usage:"Greeting to use."`
+	}{Greeting: "Hello"}
 	err = app.AddCommand(&naistrix.Command{
 		Name:  "greet",
 		Title: "Greet the user",
 		Args:  []naistrix.Argument{{Name: "user_name"}},
+		Flags: flags,
 		RunFunc: func(_ context.Context, args *naistrix.Arguments, out *naistrix.OutputWriter) error {
-			out.Println("Hello, " + args.Get("user_name") + "!")
+			out.Println(flags.Greeting + ", " + args.Get("user_name") + "!")
 			return nil
 		},
 	})

@@ -65,6 +65,9 @@ type Application struct {
 	// defaultsCommandName is the name of the defaults command.
 	defaultsCommandName string
 
+	// defaultDefinitions documents configuration keys without restricting which keys may be set.
+	defaultDefinitions []DefaultDefinition
+
 	// defaultsCommandSkipPreRunHooks names hooks to skip for the built-in defaults subtree.
 	defaultsCommandSkipPreRunHooks []string
 
@@ -99,6 +102,15 @@ func ApplicationWithWriter(w io.Writer) ApplicationOptionFunc {
 func ApplicationWithDefaultsCommandName(name string) ApplicationOptionFunc {
 	return func(a *Application) {
 		a.defaultsCommandName = name
+	}
+}
+
+// ApplicationWithDefaultsDocumentation appends documentation for configuration keys. Definitions do not set values or
+// restrict accepted keys. They are shown by the defaults list command and used as suggestions by defaults set
+// completion. Each documented key must match a registered flag; Run validates this after all flags have been added.
+func ApplicationWithDefaultsDocumentation(definitions ...DefaultDefinition) ApplicationOptionFunc {
+	return func(a *Application) {
+		a.defaultDefinitions = append(a.defaultDefinitions, definitions...)
 	}
 }
 
@@ -190,6 +202,9 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 	if err := validatePreRunHooks(app.preRunHooks); err != nil {
 		return nil, nil, err
 	}
+	if err := validateDefaultDefinitions(app.defaultDefinitions); err != nil {
+		return nil, nil, err
+	}
 
 	if app.writer == nil {
 		app.writer = os.Stdout
@@ -229,7 +244,7 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 		return nil, nil, fmt.Errorf("failed to setup application flags: %w", err)
 	}
 
-	defaults := defaultsCommand(app.defaultsCommandName, app.config)
+	defaults := defaultsCommand(app.defaultsCommandName, app.config, app.defaultDefinitions)
 	defaults.SkipPreRunHooks = app.defaultsCommandSkipPreRunHooks
 	if err := app.AddCommand(defaults); err != nil {
 		return nil, nil, fmt.Errorf("failed to add defaults command: %w", err)
@@ -356,6 +371,9 @@ func (a *Application) Run(opts ...RunOptionFunc) error {
 		return ErrApplicationAlreadyRun
 	}
 	a.started = true
+	if err := a.validateDocumentedFlags(); err != nil {
+		return err
+	}
 
 	ro := &runOptions{}
 	for _, opt := range opts {
@@ -390,6 +408,34 @@ func (a *Application) Run(opts ...RunOptionFunc) error {
 
 		return err
 	}
+}
+
+// validateDocumentedFlags runs after registration so documentation can refer to flags added after NewApplication.
+func (a *Application) validateDocumentedFlags() error {
+	if len(a.defaultDefinitions) == 0 {
+		return nil
+	}
+	flags := make(map[string]bool)
+	collectFlag := func(flag *pflag.Flag) {
+		flags[strings.ToLower(flag.Name)] = true
+	}
+	var collect func(*cobra.Command)
+	collect = func(command *cobra.Command) {
+		command.Flags().VisitAll(collectFlag)
+		command.PersistentFlags().VisitAll(collectFlag)
+
+		command.Flags()
+		for _, child := range command.Commands() {
+			collect(child)
+		}
+	}
+	collect(a.rootCommand)
+	for _, definition := range a.defaultDefinitions {
+		if !flags[strings.ToLower(definition.Key)] {
+			return fmt.Errorf("documented configuration key %q does not match any registered flag", definition.Key)
+		}
+	}
+	return nil
 }
 
 // ExecutedCommand returns the name of the command that was executed, along with the parent command names and the

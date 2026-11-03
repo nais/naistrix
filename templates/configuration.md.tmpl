@@ -1,0 +1,44 @@
+---
+title: Configuration
+has_toc: true
+nav_order: 1.5
+---
+## Configuration
+
+Configuration values stored in the configuration file provide defaults for matching flags throughout the application.
+Use the commands below to manage these values.
+
+### Configuration file location
+
+By default, the configuration file is stored in the operating system's user configuration directory, under `{{ .ApplicationName }}/config.yaml`:
+
+| Platform | Default path |
+| --- | --- |
+| Linux | `$XDG_CONFIG_HOME/{{ .ApplicationName }}/config.yaml`, or `~/.config/{{ .ApplicationName }}/config.yaml` when `XDG_CONFIG_HOME` is not set |
+| macOS | `~/Library/Application Support/{{ .ApplicationName }}/config.yaml` |
+| Windows | `%AppData%\{{ .ApplicationName }}\config.yaml` |
+
+Use the global `--config <path>` flag to choose a different file:
+
+```sh
+{{ .DefaultsCommand }} list --config /path/to/config.yaml
+```
+
+Run `{{ .DefaultsCommand }} list` to see the actual configuration file path in use.
+
+### Managing configuration
+
+- [`{{ .DefaultsCommand }} set <key> <value>`]({{ .DefaultsCommandLink }}_set): Set a configuration value.
+- [`{{ .DefaultsCommand }} get <key>`]({{ .DefaultsCommandLink }}_get): Get stored configuration values.
+- [`{{ .DefaultsCommand }} list`]({{ .DefaultsCommandLink }}_list): List stored values and documented keys.
+- [`{{ .DefaultsCommand }} unset <key>`]({{ .DefaultsCommandLink }}_unset): Remove stored configuration values.
+{{ if len .Keys }}
+
+### Configuration keys
+
+These are documented configuration keys. Other keys may also be set.
+{{ range .Keys }}
+`{{ .Key }}`
+: {{ .Description }}
+{{ end }}
+{{- end }}

@@ -43,3 +43,25 @@ func TestColorize(t *testing.T) {
 		})
 	}
 }
+
+func TestStripTags(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "plain text", in: "No formatting.", want: "No formatting."},
+		{name: "info", in: "Use <info>--team</info>.", want: "Use --team."},
+		{name: "warn", in: "<warn>Warning</warn>", want: "Warning"},
+		{name: "error", in: "<error>Error</error>", want: "Error"},
+		{name: "mixed", in: "<info>Info</info>, <warn>Warn</warn>, <error>Error</error>.", want: "Info, Warn, Error."},
+		{name: "unknown", in: "<value> and <custom>text</custom>", want: "<value> and <custom>text</custom>"},
+		{name: "mismatched", in: "<info>text</warn>", want: "<info>text</warn>"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := StripTags(tt.in); got != tt.want {
+				t.Errorf("StripTags(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}

@@ -10,6 +10,18 @@ import (
 // coloredText is a regular expression that matches custom tags for info, warn, and error formatting inline in a string.
 var coloredText = regexp.MustCompile(`<(info|warn|error)>(.*?)</(info|warn|error)>`)
 
+// StripTags removes supported formatting tags without adding terminal escape sequences. Unknown or mismatched tags are
+// preserved, matching Colorize.
+func StripTags(s string) string {
+	return coloredText.ReplaceAllStringFunc(s, func(s string) string {
+		m := coloredText.FindStringSubmatch(s)
+		if m[1] != m[3] {
+			return s
+		}
+		return m[2]
+	})
+}
+
 // Colorize applies colorization to a string based on custom tags.
 func Colorize(s string) string {
 	return coloredText.ReplaceAllStringFunc(s, func(s string) string {

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/nais/naistrix"
 	"github.com/nais/naistrix/input"
 	"github.com/spf13/cobra"
@@ -222,7 +223,15 @@ func TestDefaultsDocumentation(t *testing.T) {
 				}
 				if mode != "empty" {
 					opts = append(opts,
-						naistrix.ApplicationWithDefaultsDocumentation(naistrix.DefaultDefinition{Key: "zeta", Title: "<info>Last\nsetting.</info>", Description: "Long documentation.\n\nAnother paragraph."}),
+						naistrix.ApplicationWithDefaultsDocumentation(naistrix.DefaultDefinition{
+							Key:   "zeta",
+							Title: "<info>Last\nsetting.</info>",
+							Description: strings.TrimSpace(heredoc.Doc(`
+								Long documentation.
+
+								Another paragraph.
+							`)),
+						}),
 						naistrix.ApplicationWithDefaultsDocumentation(naistrix.DefaultDefinition{Key: "alpha", Title: "First setting."}),
 					)
 				}
@@ -387,7 +396,15 @@ func TestDefaultsSetDocumentedKeyCompletion(t *testing.T) {
 			opts := []naistrix.ApplicationOptionFunc{naistrix.ApplicationWithWriter(&stdout)}
 			if mode != "no documentation" {
 				opts = append(opts, naistrix.ApplicationWithDefaultsDocumentation(
-					naistrix.DefaultDefinition{Key: "zeta", Title: "<warn>Last\nsetting.</warn>", Description: "Detailed documentation.\n\nNot for completion."},
+					naistrix.DefaultDefinition{
+						Key:   "zeta",
+						Title: "<warn>Last\nsetting.</warn>",
+						Description: strings.TrimSpace(heredoc.Doc(`
+							Detailed documentation.
+
+							Not for completion.
+						`)),
+					},
 					naistrix.DefaultDefinition{Key: "ALPHA", Title: "<info>First</info> <error>setting.</error>"},
 				))
 			}
@@ -448,7 +465,11 @@ func TestDefaultsDescribe(t *testing.T) {
 					naistrix.ApplicationWithDefaultsCommandName(commandName),
 				}
 				if mode != "no documentation" {
-					description := "Used for <info>team flags</info>.\n\nAn explicit flag overrides this setting."
+					description := strings.TrimSpace(heredoc.Doc(`
+						Used for <info>team flags</info>.
+
+						An explicit flag overrides this setting.
+					`))
 					if mode == "title only" {
 						description = ""
 					}

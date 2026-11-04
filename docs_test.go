@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/nais/naistrix"
 )
 
@@ -74,9 +75,17 @@ func TestGenerateDocs_FormattingTags(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := app.AddCommand(&naistrix.Command{
-		Name:        "greet",
-		Title:       "Greet someone",
-		Description: "Use <info>greet <name></info>.\n\n<warn>Be polite.</warn> <error>Do not shout.</error>\n\nExisting **Markdown** and [links](https://example.com) remain intact.\n\nA stray <info> tag and a mismatched <warn>pair</error> remain visible.",
+		Name:  "greet",
+		Title: "Greet someone",
+		Description: strings.TrimSpace(heredoc.Doc(`
+			Use <info>greet <name></info>.
+
+			<warn>Be polite.</warn> <error>Do not shout.</error>
+
+			Existing **Markdown** and [links](https://example.com) remain intact.
+
+			A stray <info> tag and a mismatched <warn>pair</error> remain visible.
+		`)),
 		Flags: &struct {
 			Loud bool `usage:"Print <info>LOUDLY</info>. <error>May disturb others.</error>"`
 		}{},
@@ -108,6 +117,41 @@ func TestGenerateDocs_FormattingTags(t *testing.T) {
 		if strings.Contains(content, unwanted) {
 			t.Errorf("unexpected %q in generated command docs:\n%s", unwanted, content)
 		}
+	}
+}
+
+func TestGenerateDocs_DefaultsFormatting(t *testing.T) {
+	for _, commandName := range []string{"defaults", "config"} {
+		t.Run(commandName, func(t *testing.T) {
+			app, _, err := naistrix.NewApplication("myapp", "Test defaults formatting", "v1.0.0",
+				naistrix.ApplicationWithDefaultsCommandName(commandName),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			dir := t.TempDir()
+			if err := app.GenerateDocs(naistrix.GenerateDocsWithTargetDir(dir)); err != nil {
+				t.Fatal(err)
+			}
+			for suffix, want := range map[string]string{
+				"":          "Use `" + commandName + " describe <key>`",
+				"_set":      "Set `<key>` to `<value>`",
+				"_get":      "for each `<key>`",
+				"_list":     "**Configured values reflect only the configuration file, not environment overrides or built-in flag defaults.**",
+				"_describe": "configuration key `<key>`.",
+				"_unset":    "Remove each `<key>`",
+			} {
+				content := readFile(t, filepath.Join(dir, "myapp_"+commandName+suffix+".md"))
+				if !strings.Contains(content, want) {
+					t.Errorf("missing %q in generated %s%s docs:\n%s", want, commandName, suffix, content)
+				}
+				for _, tag := range []string{"<info>", "</info>", "<warn>", "</warn>"} {
+					if strings.Contains(content, tag) {
+						t.Errorf("unconverted tag %q in generated %s%s docs:\n%s", tag, commandName, suffix, content)
+					}
+				}
+			}
+		})
 	}
 }
 
@@ -190,7 +234,17 @@ func TestGenerateDocs_ConfigurationKeys(t *testing.T) {
 				naistrix.ApplicationWithDefaultsCommandName(commandName),
 				naistrix.ApplicationWithDefaultsDocumentation(
 					naistrix.DefaultDefinition{Key: "zeta", Title: "<warn>Last</warn> setting with **Markdown**."},
-					naistrix.DefaultDefinition{Key: "ALPHA", Title: "First setting.", Description: "Use <info>--alpha <value></info>.\n\nMore detail with <error>emphasis</error>.\n\nSet it with <info>myapp defaults set alpha <value></info>. The <value> placeholder is required."},
+					naistrix.DefaultDefinition{
+						Key:   "ALPHA",
+						Title: "First setting.",
+						Description: strings.TrimSpace(heredoc.Doc(`
+							Use <info>--alpha <value></info>.
+
+							More detail with <error>emphasis</error>.
+
+							Set it with <info>myapp defaults set alpha <value></info>. The <value> placeholder is required.
+						`)),
+					},
 				),
 			)
 			if err != nil {

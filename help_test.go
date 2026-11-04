@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/nais/naistrix"
 )
 
@@ -19,6 +20,11 @@ func TestHelpFormatting(t *testing.T) {
 			{"parent", "child", "--help"},
 			{"help", "parent", "child"},
 			{"child-alias", "--help"},
+			{"defaults", "--help"},
+			{"defaults", "set", "--help"},
+			{"defaults", "get", "--help"},
+			{"defaults", "list", "--help"},
+			{"defaults", "describe", "--help"},
 			{"defaults", "unset", "--help"},
 		} {
 			name := strings.Join(args, " ")
@@ -44,7 +50,16 @@ func TestHelpFormatting(t *testing.T) {
 					Name:            "child",
 					TopLevelAliases: []string{"child-alias"},
 					Title:           "A <info>child</info> command.",
-					Description:     "Use <info>--team <team></info>.\n\n<warn>Be careful.</warn> <error>Something failed.</error>\n\n<info>First line.\nSecond line.</info>\n\nKeep <env> visible.",
+					Description: strings.TrimSpace(heredoc.Doc(`
+						Use <info>--team <team></info>.
+
+						<warn>Be careful.</warn> <error>Something failed.</error>
+
+						<info>First line.
+						Second line.</info>
+
+						Keep <env> visible.
+					`)),
 					Flags: &struct {
 						Team string `usage:"Choose a <info>team</info>."`
 					}{},

@@ -61,11 +61,11 @@ func defaultsCommand(commandName string, config *viper.Viper, definitions []Defa
 		Name:  commandName,
 		Title: "Manage default flag values.",
 		Description: heredoc.Docf(`
-			The %[1]s command allows you to set, get, unset and list values stored in the configuration file.
+			The <info>%[1]s</info> command allows you to set, get, unset and list values stored in the configuration file.
 
 			Configuration values act as defaults for various flags throughout the application.
-			Use %[1]s list to see configured values and documented settings. Other keys may also be set.
-			Use %[1]s describe <key> to read detailed documentation for a setting.
+			Use <info>%[1]s list</info> to see configured values and documented settings. Other keys may also be set.
+			Use <info>%[1]s describe <key></info> to read detailed documentation for a setting.
 		`, commandName),
 		SubCommands: []*Command{
 			defaultsSet(config, definitions),
@@ -84,8 +84,12 @@ func defaultsSet(config *viper.Viper, definitions []DefaultDefinition) *Command 
 			{Name: "key"},
 			{Name: "value"},
 		},
-		Title:       "Set a configuration value.",
-		Description: "Set a configuration value in the configuration file. This value will be used as default for relevant flags throughout the application. Suggested keys include documented settings and existing configuration keys. Other keys may also be set.",
+		Title: "Set a configuration value.",
+		Description: strings.TrimSpace(heredoc.Doc(`
+			Set <info><key></info> to <info><value></info> in the configuration file. This value will be used as default for relevant flags throughout the application.
+
+			Suggested keys include documented settings and existing configuration keys. Other keys may also be set.
+		`)),
 		AutoCompleteFunc: func(_ context.Context, args *Arguments, toComplete string) ([]string, string) {
 			if args.Len() > 0 {
 				return nil, ""
@@ -149,7 +153,7 @@ func defaultsGet(defaultsCommandName string, config *viper.Viper) *Command {
 	return &Command{
 		Name:        "get",
 		Title:       "Get one or more configuration values.",
-		Description: "This command retrieves one or more configuration values from the configuration file.",
+		Description: "Retrieve the configured value for each <info><key></info> from the configuration file.",
 		Args: []Argument{{
 			Name: "key", Repeatable: true, Prompt: "Select a configuration key", ChoicesFunc: configurationKeyChoices(config),
 		}},
@@ -176,9 +180,13 @@ func defaultsGet(defaultsCommandName string, config *viper.Viper) *Command {
 
 func defaultsList(defaultsCommandName string, config *viper.Viper, definitions []DefaultDefinition) *Command {
 	return &Command{
-		Name:        "list",
-		Title:       "List configuration values.",
-		Description: "List configured values and documented keys, including keys that have not been set. Configured values reflect only the configuration file, not environment overrides or built-in flag defaults. Other keys may also be set.",
+		Name:  "list",
+		Title: "List configuration values.",
+		Description: strings.TrimSpace(heredoc.Doc(`
+			List configured values and documented keys, including keys that have not been set. Other keys may also be set.
+
+			<warn>Configured values reflect only the configuration file, not environment overrides or built-in flag defaults.</warn>
+		`)),
 		RunFunc: func(_ context.Context, _ *Arguments, out *OutputWriter) error {
 			settings, err := configfile.ReadSettings(config.ConfigFileUsed())
 			if err != nil {
@@ -233,9 +241,13 @@ func defaultsList(defaultsCommandName string, config *viper.Viper, definitions [
 
 func defaultsDescribe(config *viper.Viper, definitions []DefaultDefinition) *Command {
 	return &Command{
-		Name:        "describe",
-		Title:       "Describe a configuration key.",
-		Description: "Show the summary, detailed documentation, and configured value for a documented configuration key. Configured values reflect only the configuration file, not environment overrides or built-in flag defaults.",
+		Name:  "describe",
+		Title: "Describe a configuration key.",
+		Description: strings.TrimSpace(heredoc.Doc(`
+			Show the summary, detailed documentation, and configured value for the documented configuration key <info><key></info>.
+
+			<warn>Configured values reflect only the configuration file, not environment overrides or built-in flag defaults.</warn>
+		`)),
 		Args: []Argument{{
 			Name: "key", Prompt: "Select a documented configuration key", ChoicesCaseInsensitive: true,
 			ChoicesFunc: func(context.Context, *Arguments) ([]string, error) {
@@ -296,7 +308,7 @@ func defaultsUnset(config *viper.Viper) *Command {
 	return &Command{
 		Name:        "unset",
 		Title:       "Unset one or more configuration values.",
-		Description: "This command removes one or more configuration values from the configuration file completely.",
+		Description: "Remove each <info><key></info> and its configured value from the configuration file.",
 		Args: []Argument{{
 			Name: "key", Repeatable: true, Prompt: "Select a configuration key", ChoicesFunc: configurationKeyChoices(config),
 		}},

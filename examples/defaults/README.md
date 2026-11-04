@@ -20,9 +20,13 @@ Use `ApplicationWithDefaultsDocumentation` to explain settings:
 ```go
 naistrix.ApplicationWithDefaultsDocumentation(
     naistrix.DefaultDefinition{
-        Key:         "greeting",
-        Title:       "Default greeting.",
-        Description: "Greeting to use when --greeting is omitted from the greet command.\n\nAn explicit --greeting flag overrides this setting.",
+        Key:   "greeting",
+        Title: "Default greeting.",
+        Description: strings.TrimSpace(heredoc.Doc(`
+            Greeting to use when <info>--greeting</info> is omitted from the <info>greet</info> command.
+
+            An explicit <info>--greeting</info> flag overrides this setting.
+        `)),
     },
 )
 ```

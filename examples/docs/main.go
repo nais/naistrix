@@ -19,7 +19,8 @@ func main() {
 		"0.1.0",
 		naistrix.ApplicationWithDefaultsDocumentation(naistrix.DefaultDefinition{
 			Key:         "loud",
-			Description: "Print greetings in uppercase when --loud is omitted.",
+			Title:       "Uppercase greetings.",
+			Description: "Print greetings in uppercase when --loud is omitted.\n\nAn explicit --loud=false flag overrides this setting.",
 		}),
 	)
 	if err != nil {

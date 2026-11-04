@@ -2,6 +2,7 @@
 package naistrix
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -13,11 +14,12 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/nais/naistrix/internal/color"
+	"github.com/nais/naistrix/internal/terminal"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	"golang.org/x/term"
 )
 
 // ErrApplicationAlreadyRun is returned when [Application.Run] is called more than once on the same application.
@@ -106,8 +108,9 @@ func ApplicationWithDefaultsCommandName(name string) ApplicationOptionFunc {
 }
 
 // ApplicationWithDefaultsDocumentation appends documentation for configuration keys. Definitions do not set values or
-// restrict accepted keys. They are shown by the defaults list command and used as suggestions by defaults set
-// completion. Each documented key must match a registered flag; Run validates this after all flags have been added.
+// restrict accepted keys. Titles are shown by defaults list and shell completion; defaults describe and generated docs
+// also show detailed descriptions. Each documented key must match a registered flag; Run validates this after all flags
+// have been added.
 func ApplicationWithDefaultsDocumentation(definitions ...DefaultDefinition) ApplicationOptionFunc {
 	return func(a *Application) {
 		a.defaultDefinitions = append(a.defaultDefinitions, definitions...)
@@ -228,7 +231,7 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 			}
 
 			// Disable styling if NoColors flag is set or if stdout is not a TTY
-			if app.flags.NoColors || !term.IsTerminal(int(os.Stdout.Fd())) { // #nosec G115
+			if app.flags.NoColors || !terminal.IsTerminal(os.Stdout) {
 				pterm.DisableStyling()
 			}
 
@@ -237,6 +240,26 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 	}
 	app.rootCommand.CompletionOptions.SetDefaultShellCompDirective(cobra.ShellCompDirectiveNoFileComp)
 	app.rootCommand.SetOut(app.writer)
+	// Cobra bypasses OutputWriter when rendering help. Format the completed output rather than the command metadata,
+	// so --no-colors is already parsed and documentation generation still receives the original tags.
+	help := app.rootCommand.HelpFunc()
+	app.rootCommand.SetHelpFunc(func(cmd *cobra.Command, args []string) {
+		var buffer bytes.Buffer
+		writer := cmd.OutOrStdout()
+		cmd.SetOut(&buffer)
+		defer cmd.SetOut(writer)
+		help(cmd, args)
+
+		text := buffer.String()
+		if app.flags.NoColors || !terminal.IsTerminal(os.Stdout) {
+			text = color.StripTags(text)
+		} else {
+			text = color.Colorize(text)
+		}
+		if _, err := io.WriteString(writer, text); err != nil {
+			cmd.PrintErrln(err)
+		}
+	})
 	app.output = NewOutputWriter(app.writer, &app.flags.VerboseLevel)
 	app.completionPreparers[app.rootCommand] = completionPreparation{syncFlags: app.syncConfigAndFlagsForCompletion}
 

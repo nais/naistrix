@@ -17,7 +17,8 @@ func main() {
 		naistrix.ApplicationWithDefaultsDocumentation(
 			naistrix.DefaultDefinition{
 				Key:         "greeting",
-				Description: "Greeting to use when --greeting is omitted from the greet command.",
+				Title:       "Default greeting.",
+				Description: "Greeting to use when --greeting is omitted from the greet command.\n\nAn explicit --greeting flag overrides this setting.",
 			},
 		),
 	)

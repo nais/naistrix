@@ -222,8 +222,8 @@ func TestDefaultsDocumentation(t *testing.T) {
 				}
 				if mode != "empty" {
 					opts = append(opts,
-						naistrix.ApplicationWithDefaultsDocumentation(naistrix.DefaultDefinition{Key: "zeta", Description: "<info>Last setting.</info>"}),
-						naistrix.ApplicationWithDefaultsDocumentation(naistrix.DefaultDefinition{Key: "alpha", Description: "First setting."}),
+						naistrix.ApplicationWithDefaultsDocumentation(naistrix.DefaultDefinition{Key: "zeta", Title: "<info>Last\nsetting.</info>", Description: "Long documentation.\n\nAnother paragraph."}),
+						naistrix.ApplicationWithDefaultsDocumentation(naistrix.DefaultDefinition{Key: "alpha", Title: "First setting."}),
 					)
 				}
 				app, _, err := naistrix.NewApplication("test", "Test defaults documentation", "v0.0.0", opts...)
@@ -253,10 +253,13 @@ func TestDefaultsDocumentation(t *testing.T) {
 				got := stdout.String()
 				switch mode {
 				case "list":
+					if strings.Contains(got, "Long documentation") || strings.Contains(got, "Another paragraph") {
+						t.Errorf("list should not show detailed descriptions: %q", got)
+					}
 					if strings.Contains(got, "<info>") || strings.Contains(got, "\x1b[") {
 						t.Errorf("no-colors output should strip formatting: %q", got)
 					}
-					for _, want := range []string{"Stored value", "Description", "(not set)", "First setting.", "Last setting.", "Other keys may also be set"} {
+					for _, want := range []string{"Configured value", "Description", "(not set)", "First setting.", "Last setting.", "Other keys may also be set"} {
 						if !strings.Contains(got, want) {
 							t.Errorf("missing %q in %q", want, got)
 						}
@@ -283,7 +286,7 @@ func TestDefaultsDocumentation(t *testing.T) {
 	}
 }
 
-func TestDefaultsListStoredValuesAndDocumentation(t *testing.T) {
+func TestDefaultsListConfiguredValuesAndDocumentation(t *testing.T) {
 	for _, mode := range []string{"documented", "no documentation", "empty file"} {
 		t.Run(mode, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "config.yaml")
@@ -298,8 +301,8 @@ func TestDefaultsListStoredValuesAndDocumentation(t *testing.T) {
 			opts := []naistrix.ApplicationOptionFunc{naistrix.ApplicationWithWriter(&stdout)}
 			if mode != "no documentation" {
 				opts = append(opts, naistrix.ApplicationWithDefaultsDocumentation(
-					naistrix.DefaultDefinition{Key: "TEAM", Description: "Team to use."},
-					naistrix.DefaultDefinition{Key: "output", Description: "Output format."},
+					naistrix.DefaultDefinition{Key: "TEAM", Title: "Team to use."},
+					naistrix.DefaultDefinition{Key: "output", Title: "Output format."},
 				))
 			}
 			app, _, err := naistrix.NewApplication("test", "Test defaults list", "v0.0.0", opts...)
@@ -307,7 +310,7 @@ func TestDefaultsListStoredValuesAndDocumentation(t *testing.T) {
 				t.Fatal(err)
 			}
 			addDefaultsTestFlags(t, app)
-			// Environment overrides must not be presented as stored values.
+			// Environment overrides must not be presented as configured values.
 			t.Setenv("TEST_TEAM", "environment-team")
 			if err := app.Run(naistrix.RunWithArgs([]string{"--no-colors", "--config", path, "defaults", "list"})); err != nil {
 				t.Fatal(err)
@@ -328,7 +331,7 @@ func TestDefaultsListStoredValuesAndDocumentation(t *testing.T) {
 				rows = append(rows, columns)
 			}
 			want := [][]string{
-				{"Key", "Stored value", "Description"},
+				{"Key", "Configured value", "Description"},
 				{"custom", "some-value", "—"},
 				{"empty", `""`, "—"},
 				{"output", "(not set)", "Output format."},
@@ -336,9 +339,9 @@ func TestDefaultsListStoredValuesAndDocumentation(t *testing.T) {
 			}
 			switch mode {
 			case "no documentation":
-				want = [][]string{{"Key", "Stored value"}, {"custom", "some-value"}, {"empty", `""`}, {"team", "my-team"}}
+				want = [][]string{{"Key", "Configured value"}, {"custom", "some-value"}, {"empty", `""`}, {"team", "my-team"}}
 			case "empty file":
-				want = [][]string{{"Key", "Stored value", "Description"}, {"output", "(not set)", "Output format."}, {"team", "(not set)", "Team to use."}}
+				want = [][]string{{"Key", "Configured value", "Description"}, {"output", "(not set)", "Output format."}, {"team", "(not set)", "Team to use."}}
 			}
 			if !slices.EqualFunc(rows, want, slices.Equal[[]string]) {
 				t.Errorf("unexpected table rows:\ngot  %v\nwant %v\noutput: %s", rows, want, got)
@@ -353,12 +356,13 @@ func TestDefaultsListStoredValuesAndDocumentation(t *testing.T) {
 
 func TestDefaultsDocumentationValidation(t *testing.T) {
 	for _, definitions := range [][]naistrix.DefaultDefinition{
-		{{Description: "Missing key."}},
-		{{Key: "two words", Description: "Invalid key."}},
-		{{Key: "two\u00a0words", Description: "Invalid key."}},
+		{{Title: "Missing key."}},
+		{{Key: "two words", Title: "Invalid key."}},
+		{{Key: "two\u00a0words", Title: "Invalid key."}},
 		{{Key: "team"}},
-		{{Key: "team", Description: " \n\t"}},
-		{{Key: "team", Description: "One."}, {Key: "TEAM", Description: "Two."}},
+		{{Key: "team", Title: " \n\t"}},
+		{{Key: "team", Description: "A description does not replace the required title."}},
+		{{Key: "team", Title: "One."}, {Key: "TEAM", Title: "Two."}},
 	} {
 		if _, _, err := naistrix.NewApplication("test", "Test defaults documentation", "v0.0.0", naistrix.ApplicationWithDefaultsDocumentation(definitions...)); err == nil {
 			t.Errorf("expected invalid definitions to fail: %+v", definitions)
@@ -383,8 +387,8 @@ func TestDefaultsSetDocumentedKeyCompletion(t *testing.T) {
 			opts := []naistrix.ApplicationOptionFunc{naistrix.ApplicationWithWriter(&stdout)}
 			if mode != "no documentation" {
 				opts = append(opts, naistrix.ApplicationWithDefaultsDocumentation(
-					naistrix.DefaultDefinition{Key: "zeta", Description: "<warn>Last\nsetting.</warn>"},
-					naistrix.DefaultDefinition{Key: "ALPHA", Description: "<info>First</info> <error>setting.</error>"},
+					naistrix.DefaultDefinition{Key: "zeta", Title: "<warn>Last\nsetting.</warn>", Description: "Detailed documentation.\n\nNot for completion."},
+					naistrix.DefaultDefinition{Key: "ALPHA", Title: "<info>First</info> <error>setting.</error>"},
 				))
 			}
 			app, _, err := naistrix.NewApplication("test", "Test defaults completion", "v0.0.0", opts...)
@@ -421,6 +425,147 @@ func TestDefaultsSetDocumentedKeyCompletion(t *testing.T) {
 	}
 }
 
+func TestDefaultsDescribe(t *testing.T) {
+	for _, commandName := range []string{"defaults", "config"} {
+		for _, mode := range []string{"stored", "not set", "empty value", "title only", "prompt", "unknown key", "no documentation", "malformed file"} {
+			t.Run(commandName+"/"+mode, func(t *testing.T) {
+				path := filepath.Join(t.TempDir(), "config.yaml")
+				contents := "team: my-team\ncustom: undocumented\n"
+				switch mode {
+				case "empty value":
+					contents = "team: \"\"\n"
+				case "malformed file":
+					contents = "team: [invalid yaml\n"
+				}
+				if mode != "not set" {
+					if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
+						t.Fatal(err)
+					}
+				}
+				var stdout bytes.Buffer
+				opts := []naistrix.ApplicationOptionFunc{
+					naistrix.ApplicationWithWriter(&stdout),
+					naistrix.ApplicationWithDefaultsCommandName(commandName),
+				}
+				if mode != "no documentation" {
+					description := "Used for <info>team flags</info>.\n\nAn explicit flag overrides this setting."
+					if mode == "title only" {
+						description = ""
+					}
+					opts = append(opts, naistrix.ApplicationWithDefaultsDocumentation(naistrix.DefaultDefinition{
+						Key: "TEAM", Title: "<warn>Default\nteam.</warn>", Description: description,
+					}))
+				}
+				app, _, err := naistrix.NewApplication("test", "Test defaults describe", "v0.0.0", opts...)
+				if err != nil {
+					t.Fatal(err)
+				}
+				addDefaultsTestFlags(t, app)
+				t.Setenv("TEST_TEAM", "environment-team")
+				key := "TeAm"
+				if mode == "unknown key" {
+					key = "custom"
+				}
+				args := []string{"--no-colors", "--config", path, commandName, "describe"}
+				if mode == "prompt" {
+					restore := naistrix.SetChoicePromptForTest(func(prompt string, choices []string, _ ...input.SelectOptionFunc) (string, error) {
+						if prompt != "#1 KEY: Select a documented configuration key" || !slices.Equal(choices, []string{"team"}) {
+							t.Errorf("unexpected prompt %q or choices %v", prompt, choices)
+						}
+						return "team", nil
+					})
+					defer restore()
+				} else {
+					args = append(args, key)
+				}
+				err = app.Run(naistrix.RunWithArgs(args))
+				if mode == "unknown key" || mode == "no documentation" || mode == "malformed file" {
+					if err == nil {
+						t.Fatal("expected describe to fail")
+					}
+				} else {
+					if err != nil {
+						t.Fatal(err)
+					}
+					value := "my-team"
+					switch mode {
+					case "not set":
+						value = "(not set)"
+					case "empty value":
+						value = `""`
+					}
+					want := "Configuration key: team\nConfigured value: " + value + "\n\nDefault team.\n"
+					if mode != "title only" {
+						want += "\nUsed for team flags.\n\nAn explicit flag overrides this setting.\n"
+					}
+					if got := stdout.String(); got != want {
+						t.Errorf("unexpected description:\ngot  %q\nwant %q", got, want)
+					}
+				}
+				if mode == "not set" {
+					if _, err := os.Stat(path); !os.IsNotExist(err) {
+						t.Errorf("describe created a configuration file: %v", err)
+					}
+				} else if saved, err := os.ReadFile(path); err != nil || string(saved) != contents {
+					t.Errorf("describe modified configuration: %q, %v", saved, err)
+				}
+			})
+		}
+	}
+}
+
+func TestDefaultsDescribeCompletion(t *testing.T) {
+	for _, commandName := range []string{"defaults", "config"} {
+		for _, mode := range []string{"all", "prefix", "no documentation", "value"} {
+			t.Run(commandName+"/"+mode, func(t *testing.T) {
+				path := filepath.Join(t.TempDir(), "config.yaml")
+				// Persisted, undocumented keys must not be suggested by describe.
+				if err := os.WriteFile(path, []byte("custom: undocumented\n"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				var stdout bytes.Buffer
+				opts := []naistrix.ApplicationOptionFunc{
+					naistrix.ApplicationWithWriter(&stdout),
+					naistrix.ApplicationWithDefaultsCommandName(commandName),
+				}
+				if mode != "no documentation" {
+					opts = append(opts, naistrix.ApplicationWithDefaultsDocumentation(
+						naistrix.DefaultDefinition{Key: "zeta", Title: "<warn>Last\nsetting.</warn>", Description: "Not for completion."},
+						naistrix.DefaultDefinition{Key: "ALPHA", Title: "First setting."},
+					))
+				}
+				app, _, err := naistrix.NewApplication("test", "Test defaults describe completion", "v0.0.0", opts...)
+				if err != nil {
+					t.Fatal(err)
+				}
+				addDefaultsTestFlags(t, app)
+				args := []string{commandName, "describe", "--config", path}
+				want := []string{"alpha\tFirst setting.", "zeta\tLast setting."}
+				switch mode {
+				case "prefix":
+					args = append(args, "A")
+					want = want[:1]
+				case "value":
+					args = append(args, "alpha", "")
+					want = nil
+				default:
+					args = append(args, "")
+				}
+				if mode == "no documentation" {
+					want = nil
+				}
+				if mode != "value" {
+					want = cobra.AppendActiveHelp(want, "Choose a documented configuration key")
+				}
+				got, directive := requestCompletion(t, app, &stdout, args...)
+				if !slices.Equal(got, want) || directive != cobra.ShellCompDirectiveNoFileComp {
+					t.Errorf("got %v (%v), want %v (%v)", got, directive, want, cobra.ShellCompDirectiveNoFileComp)
+				}
+			})
+		}
+	}
+}
+
 func addDefaultsTestFlags(t *testing.T, app *naistrix.Application) {
 	t.Helper()
 	if err := app.AddGlobalFlags(&struct {
@@ -438,10 +583,10 @@ func TestDefaultsDocumentationMatchesRegisteredFlags(t *testing.T) {
 	app, _, err := naistrix.NewApplication("test", "Test documented flags", "v0.0.0",
 		naistrix.ApplicationWithWriter(&stdout),
 		naistrix.ApplicationWithDefaultsDocumentation(
-			naistrix.DefaultDefinition{Key: "NO-COLORS", Description: "Built-in global flag."},
-			naistrix.DefaultDefinition{Key: "TEAM-NAME", Description: "Additional global flag with a name tag."},
-			naistrix.DefaultDefinition{Key: "local", Description: "Nested command-local flag."},
-			naistrix.DefaultDefinition{Key: "sticky", Description: "Parent sticky flag."},
+			naistrix.DefaultDefinition{Key: "NO-COLORS", Title: "Built-in global flag."},
+			naistrix.DefaultDefinition{Key: "TEAM-NAME", Title: "Additional global flag with a name tag."},
+			naistrix.DefaultDefinition{Key: "local", Title: "Nested command-local flag."},
+			naistrix.DefaultDefinition{Key: "sticky", Title: "Parent sticky flag."},
 		),
 	)
 	if err != nil {
@@ -497,7 +642,7 @@ func TestDefaultsDocumentationRejectsUnregisteredFlags(t *testing.T) {
 				var stdout bytes.Buffer
 				app, _, err := naistrix.NewApplication("test", "Test documented flags", "v0.0.0",
 					naistrix.ApplicationWithWriter(&stdout),
-					naistrix.ApplicationWithDefaultsDocumentation(naistrix.DefaultDefinition{Key: key, Description: "Invalid documented key."}),
+					naistrix.ApplicationWithDefaultsDocumentation(naistrix.DefaultDefinition{Key: key, Title: "Invalid documented key."}),
 					naistrix.ApplicationWithPreRunHooks(naistrix.PreRunHook{
 						Name: "must-not-run",
 						RunFunc: func(context.Context, *naistrix.OutputWriter) error {

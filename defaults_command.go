@@ -22,8 +22,13 @@ type DefaultDefinition struct {
 	// case-insensitive and displayed in lowercase, matching configuration file keys.
 	Key string
 
-	// Description explains what the setting does and when it applies. Formatting tags are rendered by defaults list and
-	// stripped from shell completion.
+	// Title is a required short summary, shown by defaults list and shell completion. Whitespace is normalized to keep
+	// it on one line. Aim for 80 visible characters or fewer; put explanations and examples in Description. This is
+	// guidance, not a validated limit. Formatting tags are rendered by defaults list and stripped from shell completion.
+	Title string
+
+	// Description is optional detailed documentation, shown after Title by defaults describe and in generated docs.
+	// It supports multiple paragraphs and formatting tags.
 	Description string
 }
 
@@ -38,8 +43,8 @@ func validateDefaultDefinitions(definitions []DefaultDefinition) error {
 			return fmt.Errorf("duplicate documented configuration key: %q", definition.Key)
 		}
 		seen[key] = true
-		if strings.TrimSpace(definition.Description) == "" {
-			return fmt.Errorf("documented configuration key %q is missing a description", definition.Key)
+		if strings.TrimSpace(definition.Title) == "" {
+			return fmt.Errorf("documented configuration key %q is missing a title", definition.Key)
 		}
 	}
 	return nil
@@ -58,12 +63,14 @@ func defaultsCommand(commandName string, config *viper.Viper, definitions []Defa
 			The %[1]s command allows you to set, get, unset and list values stored in the configuration file.
 
 			Configuration values act as defaults for various flags throughout the application.
-			Use %[1]s list to see stored values and documented settings. Other keys may also be set.
+			Use %[1]s list to see configured values and documented settings. Other keys may also be set.
+			Use %[1]s describe <key> to read detailed documentation for a setting.
 		`, commandName),
 		SubCommands: []*Command{
 			defaultsSet(config, definitions),
 			defaultsGet(commandName, config),
 			defaultsList(commandName, config, definitions),
+			defaultsDescribe(config, definitions),
 			defaultsUnset(config),
 		},
 	}
@@ -86,7 +93,7 @@ func defaultsSet(config *viper.Viper, definitions []DefaultDefinition) *Command 
 			keys := make(map[string]string, len(definitions))
 			for _, definition := range definitions {
 				// Shell completion descriptions must be plain text on one line.
-				description := strings.Join(strings.Fields(definition.Description), " ")
+				description := strings.Join(strings.Fields(definition.Title), " ")
 				keys[definition.Key] = color.StripTags(description)
 			}
 			settings, err := getSettingsFromConfigFile(config)
@@ -170,7 +177,7 @@ func defaultsList(defaultsCommandName string, config *viper.Viper, definitions [
 	return &Command{
 		Name:        "list",
 		Title:       "List configuration values.",
-		Description: "List stored configuration values and documented keys, including keys that have not been set. Stored values do not include environment overrides or built-in flag defaults. Other keys may also be set.",
+		Description: "List configured values and documented keys, including keys that have not been set. Configured values reflect only the configuration file, not environment overrides or built-in flag defaults. Other keys may also be set.",
 		RunFunc: func(_ context.Context, _ *Arguments, out *OutputWriter) error {
 			settings, err := getSettingsFromConfigFile(config)
 			if err != nil {
@@ -188,9 +195,9 @@ func defaultsList(defaultsCommandName string, config *viper.Viper, definitions [
 				descriptions[key] = "—"
 			}
 			for _, definition := range definitions {
-				descriptions[definition.Key] = definition.Description
+				descriptions[definition.Key] = strings.Join(strings.Fields(definition.Title), " ")
 			}
-			headers := []string{"Key", "Stored value"}
+			headers := []string{"Key", "Configured value"}
 			if len(definitions) > 0 {
 				headers = append(headers, "Description")
 			}
@@ -215,9 +222,71 @@ func defaultsList(defaultsCommandName string, config *viper.Viper, definitions [
 			}
 			if len(definitions) > 0 {
 				out.Println("\n(not set) means no value is stored in the configuration file. Other keys may also be set.")
+				out.Printf("Use <info>%s describe <key></info> for detailed documentation.\n", defaultsCommandName)
 			}
 			out.Printf("\nUse the <info>%[1]s set <key> <value></info> command to update or create values, or the <info>%[1]s unset <key>[, <key>]</info> command to remove values\n", defaultsCommandName)
 			return nil
+		},
+	}
+}
+
+func defaultsDescribe(config *viper.Viper, definitions []DefaultDefinition) *Command {
+	return &Command{
+		Name:        "describe",
+		Title:       "Describe a configuration key.",
+		Description: "Show the summary, detailed documentation, and configured value for a documented configuration key. Configured values reflect only the configuration file, not environment overrides or built-in flag defaults.",
+		Args: []Argument{{
+			Name: "key", Prompt: "Select a documented configuration key", ChoicesCaseInsensitive: true,
+			ChoicesFunc: func(context.Context, *Arguments) ([]string, error) {
+				keys := make([]string, len(definitions))
+				for i, definition := range definitions {
+					keys[i] = definition.Key
+				}
+				slices.Sort(keys)
+				return keys, nil
+			},
+		}},
+		AutoCompleteFunc: func(_ context.Context, args *Arguments, toComplete string) ([]string, string) {
+			if args.Len() > 0 {
+				return nil, ""
+			}
+			var completions []string
+			for _, definition := range definitions {
+				if strings.HasPrefix(definition.Key, strings.ToLower(toComplete)) {
+					title := color.StripTags(strings.Join(strings.Fields(definition.Title), " "))
+					completions = append(completions, definition.Key+"\t"+title)
+				}
+			}
+			slices.Sort(completions)
+			return completions, "Choose a documented configuration key"
+		},
+		RunFunc: func(_ context.Context, args *Arguments, out *OutputWriter) error {
+			settings, err := getSettingsFromConfigFile(config)
+			if err != nil {
+				return fmt.Errorf("unable to read configuration file: %w", err)
+			}
+			key := args.Get("key")
+			for _, definition := range definitions {
+				if definition.Key != key {
+					continue
+				}
+				value := "(not set)"
+				if stored, ok := settings[key]; ok {
+					value = fmt.Sprint(stored)
+					if value == "" {
+						value = `""`
+					}
+				}
+				out.Printf("Configuration key: <info>%s</info>\n", key)
+				out.Printf("Configured value: <info>%s</info>\n\n", value)
+				out.Println(strings.Join(strings.Fields(definition.Title), " "))
+				if strings.TrimSpace(definition.Description) != "" {
+					out.Println()
+					out.Println(definition.Description)
+				}
+				return nil
+			}
+			return fmt.Errorf("no documentation available for configuration key %q", key)
 		},
 	}
 }

@@ -38,7 +38,11 @@ func TestGenerateDocs_FileContainsCorrectContent(t *testing.T) {
 
 	content := readFile(t, filepath.Join(dir, "myapp_greet.md"))
 	contains := map[string]string{
-		"title":                      "## myapp greet",
+		"title":                      "\n# myapp greet\n",
+		"aliases heading":            "\n## Aliases\n",
+		"options heading":            "\n## Options\n",
+		"inherited options heading":  "\n## Inherited options\n",
+		"examples heading":           "\n## Examples\n",
 		"description":                "Prints a friendly greeting to the user.",
 		"synopsis":                   "myapp greet NAME [NAME...] [flags]",
 		"hello alias":                "`myapp hello`",
@@ -59,6 +63,51 @@ func TestGenerateDocs_FileContainsCorrectContent(t *testing.T) {
 	}
 	if missing {
 		t.Logf("Some errors occurred, the generated content:\n%s", content)
+	}
+}
+
+func TestGenerateDocs_FormattingTags(t *testing.T) {
+	app := newTestApp(t)
+	if err := app.AddGlobalFlags(&struct {
+		Team string `usage:"Use <info>--team <team></info>. <warn>Choose carefully.</warn>"`
+	}{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.AddCommand(&naistrix.Command{
+		Name:        "greet",
+		Title:       "Greet someone",
+		Description: "Use <info>greet <name></info>.\n\n<warn>Be polite.</warn> <error>Do not shout.</error>\n\nExisting **Markdown** and [links](https://example.com) remain intact.\n\nA stray <info> tag and a mismatched <warn>pair</error> remain visible.",
+		Flags: &struct {
+			Loud bool `usage:"Print <info>LOUDLY</info>. <error>May disturb others.</error>"`
+		}{},
+		Examples: []naistrix.CommandExample{{
+			Description: "Greet <info>Alice</info> <warn>politely</warn>, <error>not loudly</error>",
+			Command:     "<name>",
+		}},
+		RunFunc: noop,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	if err := app.GenerateDocs(naistrix.GenerateDocsWithTargetDir(dir)); err != nil {
+		t.Fatal(err)
+	}
+	content := readFile(t, filepath.Join(dir, "myapp_greet.md"))
+	for _, want := range []string{
+		"Use `greet <name>`.\n\n**Be polite.** **Do not shout.**\n\nExisting **Markdown** and [links](https://example.com) remain intact.",
+		": Print `LOUDLY`. **May disturb others.**",
+		": Use `--team <team>`. **Choose carefully.**",
+		"~~~bash\n# Greet Alice politely, not loudly\n$ myapp greet <name>\n",
+		"A stray &lt;info&gt; tag and a mismatched &lt;warn&gt;pair&lt;/error&gt; remain visible.",
+	} {
+		if !strings.Contains(content, want) {
+			t.Errorf("expected %q in generated command docs:\n%s", want, content)
+		}
+	}
+	for _, unwanted := range []string{"<info>", "</info>", "<warn>", "</warn>", "<error>", "</error>", "\x1b["} {
+		if strings.Contains(content, unwanted) {
+			t.Errorf("unexpected %q in generated command docs:\n%s", unwanted, content)
+		}
 	}
 }
 
@@ -87,6 +136,11 @@ func TestGenerateDocs_ParentCommand(t *testing.T) {
 	}
 
 	content := readFile(t, filepath.Join(dir, "myapp_auth.md"))
+	for _, heading := range []string{"\n# myapp auth\n", "\n## Available commands\n"} {
+		if !strings.Contains(content, heading) {
+			t.Errorf("expected heading %q, got\n%s", heading, content)
+		}
+	}
 	if contains := "myapp auth <command>"; !strings.Contains(content, contains) {
 		t.Errorf("expected file to contain %q, got\n%s", contains, content)
 	}
@@ -96,6 +150,9 @@ func TestGenerateDocs_ParentCommand(t *testing.T) {
 	}
 
 	childContent := readFile(t, filepath.Join(dir, "myapp_auth_login.md"))
+	if !strings.Contains(childContent, "\n# myapp auth login\n") {
+		t.Errorf("expected child page to have a level-one heading, got\n%s", childContent)
+	}
 	if contains := "parent: myapp auth"; !strings.Contains(childContent, contains) {
 		t.Errorf("expected file to contain %q, got\n%s", contains, childContent)
 	}
@@ -132,8 +189,8 @@ func TestGenerateDocs_ConfigurationKeys(t *testing.T) {
 			app, flags, err := naistrix.NewApplication("myapp", "Test configuration docs", "v1.0.0",
 				naistrix.ApplicationWithDefaultsCommandName(commandName),
 				naistrix.ApplicationWithDefaultsDocumentation(
-					naistrix.DefaultDefinition{Key: "zeta", Description: "<warn>Last</warn> setting with **Markdown**."},
-					naistrix.DefaultDefinition{Key: "ALPHA", Description: "Use <info>--alpha</info>.\n\nMore detail with <error>emphasis</error>."},
+					naistrix.DefaultDefinition{Key: "zeta", Title: "<warn>Last</warn> setting with **Markdown**."},
+					naistrix.DefaultDefinition{Key: "ALPHA", Title: "First setting.", Description: "Use <info>--alpha <value></info>.\n\nMore detail with <error>emphasis</error>.\n\nSet it with <info>myapp defaults set alpha <value></info>. The <value> placeholder is required."},
 				),
 			)
 			if err != nil {
@@ -165,24 +222,29 @@ func TestGenerateDocs_ConfigurationKeys(t *testing.T) {
 			for _, want := range []string{
 				"title: Configuration",
 				"nav_order: 1.5",
-				"## Configuration",
+				"\n# Configuration\n",
 				"defaults for matching flags",
-				"### Configuration keys",
+				"\n## Configuration keys\n",
 				"Other keys may also be set.",
-				"`alpha`\n: Use <info>--alpha</info>.\n\nMore detail with <error>emphasis</error>.",
-				"`zeta`\n: <warn>Last</warn> setting with **Markdown**.",
+				"\n### alpha\n\nFirst setting.\n\nUse `--alpha <value>`.\n\nMore detail with **emphasis**.\n\nSet it with `myapp defaults set alpha <value>`. The &lt;value&gt; placeholder is required.",
+				"\n### zeta\n\n**Last** setting with **Markdown**.",
 			} {
 				if !strings.Contains(content, want) {
 					t.Errorf("expected %q in generated docs:\n%s", want, content)
 				}
 			}
-			if strings.Index(content, "`alpha`") > strings.Index(content, "`zeta`") {
+			for _, unwanted := range []string{"<info>", "</info>", "<warn>", "</warn>", "<error>", "</error>", "\n#### ", "\n### `"} {
+				if strings.Contains(content, unwanted) {
+					t.Errorf("unexpected %q in generated configuration docs:\n%s", unwanted, content)
+				}
+			}
+			if strings.Index(content, "\n### alpha\n") > strings.Index(content, "\n### zeta\n") {
 				t.Errorf("configuration keys are not sorted:\n%s", content)
 			}
 			if strings.Contains(content, "\nparent:") {
 				t.Errorf("configuration must be a top-level page:\n%s", content)
 			}
-			for _, subcommand := range []string{"set", "get", "list", "unset"} {
+			for _, subcommand := range []string{"set", "get", "list", "describe", "unset"} {
 				link := "myapp_" + commandName + "_" + subcommand
 				if !strings.Contains(content, "myapp "+commandName+" "+subcommand) || !strings.Contains(content, "]("+link+")") {
 					t.Errorf("missing link to %s in configuration page:\n%s", subcommand, content)
@@ -204,7 +266,7 @@ func TestGenerateDocs_ConfigurationKeys(t *testing.T) {
 				if strings.Contains(content, "private-local-key") || strings.Contains(content, "\x1b[") {
 					t.Errorf("unexpected config data or terminal escape sequences in %s", file.Name())
 				}
-				if file.Name() != "configuration.md" && (strings.Contains(content, "### Configuration keys") || strings.Contains(content, "<warn>Last</warn>")) {
+				if file.Name() != "configuration.md" && (strings.Contains(content, "## Configuration keys") || strings.Contains(content, "**Last**")) {
 					t.Errorf("configuration keys should only appear on the configuration page, found in %s", file.Name())
 				}
 			}
@@ -234,7 +296,8 @@ func TestGenerateDocs_NoConfigurationKeys(t *testing.T) {
 				"title: Configuration",
 				"nav_order: 1.5",
 				"defaults for matching flags",
-				"### Configuration file location",
+				"\n# Configuration\n",
+				"\n## Configuration file location\n",
 				"`$XDG_CONFIG_HOME/myapp/config.yaml`",
 				"`~/.config/myapp/config.yaml`",
 				"when `XDG_CONFIG_HOME` is not set",
@@ -243,7 +306,7 @@ func TestGenerateDocs_NoConfigurationKeys(t *testing.T) {
 				"global `--config <path>` flag",
 				"myapp " + commandName + " list --config /path/to/config.yaml",
 				"Run `myapp " + commandName + " list` to see the actual configuration file path in use.",
-				"### Managing configuration",
+				"\n## Managing configuration\n",
 			} {
 				if !strings.Contains(content, want) {
 					t.Errorf("missing %q in configuration page:\n%s", want, content)
@@ -252,10 +315,10 @@ func TestGenerateDocs_NoConfigurationKeys(t *testing.T) {
 			if strings.Contains(content, flags.Config) || strings.Contains(content, "private-config.yaml") {
 				t.Errorf("configuration page leaked a machine-specific path:\n%s", content)
 			}
-			if strings.Contains(content, "### Configuration keys") {
+			if strings.Contains(content, "## Configuration keys") {
 				t.Errorf("unexpected empty keys section:\n%s", content)
 			}
-			for _, subcommand := range []string{"set", "get", "list", "unset"} {
+			for _, subcommand := range []string{"set", "get", "list", "describe", "unset"} {
 				link := "myapp_" + commandName + "_" + subcommand
 				if !strings.Contains(content, "]("+link+")") {
 					t.Errorf("missing link to %s in configuration page:\n%s", subcommand, content)
@@ -274,7 +337,7 @@ func TestGenerateDocs_NoConfigurationKeys(t *testing.T) {
 
 func TestGenerateDocs_ValidatesDocumentedFlagsBeforeWriting(t *testing.T) {
 	app, _, err := naistrix.NewApplication("myapp", "Test configuration docs", "v1.0.0",
-		naistrix.ApplicationWithDefaultsDocumentation(naistrix.DefaultDefinition{Key: "team", Description: "Default team."}),
+		naistrix.ApplicationWithDefaultsDocumentation(naistrix.DefaultDefinition{Key: "team", Title: "Default team."}),
 	)
 	if err != nil {
 		t.Fatal(err)

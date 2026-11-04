@@ -7,14 +7,16 @@ import (
 	"github.com/pterm/pterm"
 )
 
-// coloredText is a regular expression that matches custom tags for info, warn, and error formatting inline in a string.
-var coloredText = regexp.MustCompile(`<(info|warn|error)>(.*?)</(info|warn|error)>`)
+// TaggedText matches info, warn, and error tag pairs, including across line breaks.
+// Capture groups 1, 2, and 3 contain the opening tag name, content, and closing tag name.
+// Callers must check that tag names match before formatting.
+var TaggedText = regexp.MustCompile(`(?s)<(info|warn|error)>(.*?)</(info|warn|error)>`)
 
 // StripTags removes supported formatting tags without adding terminal escape sequences. Unknown or mismatched tags are
 // preserved, matching Colorize.
 func StripTags(s string) string {
-	return coloredText.ReplaceAllStringFunc(s, func(s string) string {
-		m := coloredText.FindStringSubmatch(s)
+	return TaggedText.ReplaceAllStringFunc(s, func(s string) string {
+		m := TaggedText.FindStringSubmatch(s)
 		if m[1] != m[3] {
 			return s
 		}
@@ -24,8 +26,8 @@ func StripTags(s string) string {
 
 // Colorize applies colorization to a string based on custom tags.
 func Colorize(s string) string {
-	return coloredText.ReplaceAllStringFunc(s, func(s string) string {
-		m := coloredText.FindStringSubmatch(s)
+	return TaggedText.ReplaceAllStringFunc(s, func(s string) string {
+		m := TaggedText.FindStringSubmatch(s)
 		openTag, content, closeTag := m[1], m[2], m[3]
 
 		if openTag != closeTag {

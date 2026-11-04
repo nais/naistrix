@@ -9,43 +9,43 @@ parent: {{ .Parent }}
 has_children: true
 {{- end }}
 ---
-## {{ .Name }}
+# {{ .Name }}
 ```
 {{ .Synopsis }}
 ```
 {{- if len .Aliases }}
-### Aliases
+## Aliases
 {{ range .Aliases }}
 - `{{ . }}`
 {{- end }}
 {{- end }}
 
-{{ .Description }}
+{{ .Description | markdown }}
 {{- if len .SubCommands }}
-### Available commands
+## Available commands
 {{- range .SubCommands }}
 - [{{ . }}]({{ . | linkify }})
 {{- end }}
 {{- else }}
 {{- if len .LocalFlags }}
-### Options
+## Options
 {{- range .LocalFlags }}
 {{ if .Short }}`-{{ .Short }}`, {{ end }}`--{{ .Name }}`
-: {{ .Description }}
+: {{ .Description | markdown }}
 {{ end }}
 {{- end }}
 {{- if len .InheritedFlags }}
-### Inherited options
+## Inherited options
 {{- range .InheritedFlags }}
 {{ if .Short }}`-{{ .Short }}`, {{ end }}`--{{ .Name }}`
-: {{ .Description }}
+: {{ .Description | markdown }}
 {{ end }}
 {{- end }}
 {{- if len .Examples }}
-### Examples
+## Examples
 ~~~bash
 {{- range .Examples }}
-# {{ .Description }}
+# {{ .Description | plain }}
 $ {{ .Command }}
 {{ end -}}
 ~~~

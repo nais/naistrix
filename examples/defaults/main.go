@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
+	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/nais/naistrix"
 )
 
@@ -16,8 +18,13 @@ func main() {
 		naistrix.ApplicationWithDefaultsCommandName("config"),
 		naistrix.ApplicationWithDefaultsDocumentation(
 			naistrix.DefaultDefinition{
-				Key:         "greeting",
-				Description: "Greeting to use when --greeting is omitted from the greet command.",
+				Key:   "greeting",
+				Title: "Default greeting.",
+				Description: strings.TrimSpace(heredoc.Doc(`
+					Greeting to use when <info>--greeting</info> is omitted from the <info>greet</info> command.
+
+					An explicit <info>--greeting</info> flag overrides this setting.
+				`)),
 			},
 		),
 	)
@@ -32,6 +39,11 @@ func main() {
 	err = app.AddCommand(&naistrix.Command{
 		Name:  "greet",
 		Title: "Greet the user",
+		Description: strings.TrimSpace(heredoc.Doc(`
+			Print a greeting for <info><user_name></info>.
+
+			Use <info>--greeting</info> to override the configured greeting.
+		`)),
 		Args:  []naistrix.Argument{{Name: "user_name"}},
 		Flags: flags,
 		RunFunc: func(_ context.Context, args *naistrix.Arguments, out *naistrix.OutputWriter) error {

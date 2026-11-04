@@ -4,7 +4,7 @@ import (
 	"errors"
 	"os"
 
-	"golang.org/x/term"
+	"github.com/nais/naistrix/internal/terminal"
 )
 
 // ErrNotInteractive is returned by the prompt functions in this package when there is no interactive terminal available
@@ -15,7 +15,7 @@ var ErrNotInteractive = errors.New("no interactive terminal available")
 // must be terminals: standard input so a response can be read, and standard output so the user can see the prompt. It is
 // a package variable so tests can override the detection.
 var interactive = func() bool {
-	return term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd())) // #nosec G115
+	return terminal.IsTerminal(os.Stdin) && terminal.IsTerminal(os.Stdout)
 }
 
 // IsInteractive reports whether standard input and standard output are both terminals.

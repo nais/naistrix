@@ -34,7 +34,8 @@ type Command struct {
 	Title string
 
 	// Description is a detailed description of the command, shown in the help output. When set, it will be prefixed
-	// with the [Command.Title] field.
+	// with the [Command.Title] field. The <info>, <warn>, and <error> formatting tags are rendered in terminal help and
+	// converted to Markdown in generated documentation.
 	Description string
 
 	// Deprecated marks the command as deprecated. When set, the commands [Command.RunFunc] is never executed, instead

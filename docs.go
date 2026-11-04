@@ -9,6 +9,8 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/nais/naistrix/internal/color"
+	"github.com/nais/naistrix/internal/docformat"
 	"github.com/spf13/pflag"
 )
 
@@ -129,6 +131,9 @@ type commandTemplateDataExample struct {
 // directory can be changed using the [GenerateDocsWithTargetDir] option.
 // Documented defaults keys must match registered flags, just as when calling [Application.Run].
 // A top-level configuration.md page is always generated, including documented defaults keys when registered.
+// In descriptions, paired info tags become inline code and paired warn/error tags become bold text. Other tags, including
+// placeholders such as <team> and <env>, are escaped outside info spans so they remain visible. Example descriptions inside
+// shell code blocks have formatting tags stripped instead. Existing Markdown and paragraph breaks are preserved.
 func (a *Application) GenerateDocs(opts ...GenerateDocsOptionFunc) error {
 	options := &generateDocsOptions{
 		targetDir:    "docs",
@@ -183,7 +188,9 @@ func (a *Application) generateConfigurationDocs(root *os.Root) error {
 		DefaultsCommandLink: strings.ReplaceAll(command, " ", "_"),
 		Keys:                definitions,
 	}
-	tmpl, err := template.New("configuration").Parse(configurationTemplate)
+	tmpl, err := template.New("configuration").Funcs(template.FuncMap{
+		"markdown": docformat.Markdown,
+	}).Parse(configurationTemplate)
 	if err != nil {
 		return fmt.Errorf("failed to parse template: %w", err)
 	}
@@ -249,6 +256,8 @@ func generateDocsForCommand(cmd *Command, root *os.Root, strict bool, ow *Output
 	}
 
 	tmpl, err := template.New("command").Funcs(template.FuncMap{
+		"markdown": docformat.Markdown,
+		"plain":    color.StripTags,
 		"linkify": func(s string) string {
 			return strings.ReplaceAll(s, " ", "_")
 		},

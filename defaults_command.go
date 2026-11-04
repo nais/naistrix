@@ -13,6 +13,7 @@ import (
 
 	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/nais/naistrix/internal/color"
+	"github.com/nais/naistrix/internal/configfile"
 	"github.com/spf13/viper"
 )
 
@@ -96,7 +97,7 @@ func defaultsSet(config *viper.Viper, definitions []DefaultDefinition) *Command 
 				description := strings.Join(strings.Fields(definition.Title), " ")
 				keys[definition.Key] = color.StripTags(description)
 			}
-			settings, err := getSettingsFromConfigFile(config)
+			settings, err := configfile.ReadSettings(config.ConfigFileUsed())
 			if err != nil {
 				return nil, err.Error()
 			}
@@ -153,7 +154,7 @@ func defaultsGet(defaultsCommandName string, config *viper.Viper) *Command {
 			Name: "key", Repeatable: true, Prompt: "Select a configuration key", ChoicesFunc: configurationKeyChoices(config),
 		}},
 		RunFunc: func(_ context.Context, args *Arguments, out *OutputWriter) error {
-			settings, err := getSettingsFromConfigFile(config)
+			settings, err := configfile.ReadSettings(config.ConfigFileUsed())
 			if err != nil {
 				return fmt.Errorf("unable to read configuration file: %w", err)
 			}
@@ -179,7 +180,7 @@ func defaultsList(defaultsCommandName string, config *viper.Viper, definitions [
 		Title:       "List configuration values.",
 		Description: "List configured values and documented keys, including keys that have not been set. Configured values reflect only the configuration file, not environment overrides or built-in flag defaults. Other keys may also be set.",
 		RunFunc: func(_ context.Context, _ *Arguments, out *OutputWriter) error {
-			settings, err := getSettingsFromConfigFile(config)
+			settings, err := configfile.ReadSettings(config.ConfigFileUsed())
 			if err != nil {
 				return fmt.Errorf("unable to read configuration file: %w", err)
 			}
@@ -261,7 +262,7 @@ func defaultsDescribe(config *viper.Viper, definitions []DefaultDefinition) *Com
 			return completions, "Choose a documented configuration key"
 		},
 		RunFunc: func(_ context.Context, args *Arguments, out *OutputWriter) error {
-			settings, err := getSettingsFromConfigFile(config)
+			settings, err := configfile.ReadSettings(config.ConfigFileUsed())
 			if err != nil {
 				return fmt.Errorf("unable to read configuration file: %w", err)
 			}
@@ -300,7 +301,7 @@ func defaultsUnset(config *viper.Viper) *Command {
 			Name: "key", Repeatable: true, Prompt: "Select a configuration key", ChoicesFunc: configurationKeyChoices(config),
 		}},
 		RunFunc: func(_ context.Context, args *Arguments, out *OutputWriter) error {
-			settings, err := getSettingsFromConfigFile(config)
+			settings, err := configfile.ReadSettings(config.ConfigFileUsed())
 			if err != nil {
 				return fmt.Errorf("unable to read configuration file: %w", err)
 			}
@@ -343,24 +344,11 @@ func ensureDirectoryExists(dir string) error {
 	return os.MkdirAll(dir, 0o750)
 }
 
-// getSettingsFromConfigFile returns settings from a Viper configuration file as a map.
-func getSettingsFromConfigFile(config *viper.Viper) (map[string]any, error) {
-	v := viper.New()
-	v.SetConfigFile(config.ConfigFileUsed())
-	if err := v.ReadInConfig(); errors.Is(err, os.ErrNotExist) {
-		return make(map[string]any), nil
-	} else if err != nil {
-		return nil, fmt.Errorf("unable to read configuration file %q: %w", config.ConfigFileUsed(), err)
-	}
-
-	return v.AllSettings(), nil
-}
-
 // configurationKeyChoices reads persisted keys for validation, interactive selection, and shell completion.
 // Read the file for each request so command defaults and environment variables do not become selectable keys.
 func configurationKeyChoices(config *viper.Viper) ArgumentChoicesFunc {
 	return func(context.Context, *Arguments) ([]string, error) {
-		settings, err := getSettingsFromConfigFile(config)
+		settings, err := configfile.ReadSettings(config.ConfigFileUsed())
 		if err != nil {
 			return nil, err
 		}

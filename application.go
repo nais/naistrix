@@ -9,12 +9,11 @@ import (
 	"io"
 	"maps"
 	"os"
-	"os/user"
-	"path/filepath"
 	"slices"
 	"strings"
 
 	"github.com/nais/naistrix/internal/color"
+	"github.com/nais/naistrix/internal/configfile"
 	"github.com/nais/naistrix/internal/terminal"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
@@ -179,7 +178,7 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 	userConfigDir += "/" + name
 
 	// Clean up old userConfigDir/.nais, and move files to new userConfigDir
-	cleanUpOldConfig(userConfigDir, oldUserConfigDir, "config.yaml")
+	configfile.MigrateLegacy(userConfigDir, oldUserConfigDir, "config.yaml")
 
 	v := viper.New()
 	v.SetEnvPrefix(strings.ToUpper(name))
@@ -474,7 +473,7 @@ func (a *Application) ExecutedCommand() []string {
 // initializeConfig initializes the configuration for the application using Viper. It reads the configuration file
 // specified by the global --config flag.
 func (a *Application) initializeConfig(flags *pflag.FlagSet, out *OutputWriter) error {
-	p, err := resolveHomeDir(a.flags.Config)
+	p, err := configfile.ResolveHomeDir(a.flags.Config)
 	if err != nil {
 		return fmt.Errorf("failed to resolve home directory in config file path: %w", err)
 	}
@@ -532,42 +531,6 @@ func duplicate(values []string) string {
 		seen[v] = struct{}{}
 	}
 	return ""
-}
-
-// resolveHomeDir resolves the home directory in the given path if it starts with "~/".
-func resolveHomeDir(path string) (string, error) {
-	if len(path) > 1 && path[:2] == "~/" {
-		u, err := user.Current()
-		if err != nil {
-			return "", err
-		}
-		path = filepath.Join(u.HomeDir, path[2:])
-	}
-	return path, nil
-}
-
-// cleanUpOldConfig will try to move old config into new folder, and delete the old folder.
-// All errors are ignored, and we return, pretending that everything is good
-func cleanUpOldConfig(configDir, oldDir, oldFile string) {
-	stat, err := os.Stat(oldDir)
-	if err != nil {
-		return
-	}
-
-	if !stat.IsDir() {
-		// If, for some reason, it's not a folder, we return
-		return
-	}
-
-	if err := os.MkdirAll(configDir, 0o750); err != nil {
-		return
-	}
-
-	if err := os.Rename(oldDir+"/"+oldFile, configDir+"/"+oldFile); err != nil {
-		return
-	}
-
-	_ = os.RemoveAll(oldDir)
 }
 
 // collectTopLevelAliases walks through the command and its children and stores top-level aliases in the supplied

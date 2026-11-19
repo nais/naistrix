@@ -71,8 +71,7 @@ func RenderError(w io.Writer, err error, format ErrorFormat) error {
 		return writeErr
 	case ErrorFormatJSON:
 		code, message := "error", err.Error()
-		var coded *CodedError
-		if errors.As(err, &coded) {
+		if coded, ok := errors.AsType[*CodedError](err); ok {
 			if coded.Code != "" {
 				code = coded.Code
 			}

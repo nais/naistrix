@@ -27,6 +27,28 @@ Aliases and deprecated-command replacements are handled within the original run
 and do not require another call to `Run`. Applications are not safe for concurrent
 use.
 
+### Structured errors
+
+Use `CodedError` for a stable, application-defined error code, a public message
+and an optional wrapped cause. `errors.Is` and `errors.As` still reach the cause.
+`RenderError(writer, err, ErrorFormatJSON)` writes one JSON object containing only
+`code` and `message`, without terminal styling. It uses a wrapped `CodedError`'s
+public details, never its cause. Ordinary errors (including the existing `Error`
+type) use code `"error"` and their error string; keep those messages safe to expose.
+
+Rendering is opt-in. The application chooses the format, destination (typically
+stderr) and exit status; no global output flag or exit-code taxonomy is imposed.
+`ErrorFormatText` preserves ordinary text presentation, and a nil error writes
+nothing. Use `ApplicationWithUsageOnError(false)` to avoid automatic human-oriented
+usage output on parsing or validation failures; explicit help still works.
+See the [structured errors example](examples/errors/):
+
+```bash
+go build -o /tmp/naistrix-errors ./examples/errors
+/tmp/naistrix-errors fail
+# stderr: {"code":"permission_denied","message":"You cannot update this resource."}
+```
+
 ## Local development
 
 ### Clone the repository:

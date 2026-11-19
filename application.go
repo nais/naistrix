@@ -59,6 +59,8 @@ type Application struct {
 	// started records whether Run has been called, regardless of its result.
 	started bool
 
+	silenceUsageOnError bool
+
 	// executedCommand is the internal cobra.Command that was executed when running the application with the Run()
 	// method.
 	executedCommand *cobra.Command
@@ -121,6 +123,15 @@ func ApplicationWithDefaultsDocumentation(definitions ...DefaultDefinition) Appl
 func ApplicationWithDefaultsCommandSkipPreRunHooks(names ...string) ApplicationOptionFunc {
 	return func(a *Application) {
 		a.defaultsCommandSkipPreRunHooks = append(a.defaultsCommandSkipPreRunHooks, names...)
+	}
+}
+
+// ApplicationWithUsageOnError controls automatic usage output for errors before [Command.RunFunc].
+// It is enabled by default. Disable it when rendering machine-readable errors; explicit help is unaffected.
+// Errors returned by RunFunc already suppress automatic usage output.
+func ApplicationWithUsageOnError(enabled bool) ApplicationOptionFunc {
+	return func(a *Application) {
+		a.silenceUsageOnError = !enabled
 	}
 }
 
@@ -219,6 +230,7 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 		Short:              app.title,
 		Version:            app.version,
 		SilenceErrors:      true,
+		SilenceUsage:       app.silenceUsageOnError,
 		DisableSuggestions: true,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 			out := app.output

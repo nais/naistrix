@@ -3,12 +3,89 @@ package naistrix_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/nais/naistrix"
 	"github.com/pterm/pterm"
 )
+
+func TestOutputWriter_SeparateDiagnostics(t *testing.T) {
+	for _, diagnosticsEnabled := range []bool{false, true} {
+		t.Run(fmt.Sprintf("separate=%t", diagnosticsEnabled), func(t *testing.T) {
+			var result, diagnostics bytes.Buffer
+			options := []naistrix.ApplicationOptionFunc{naistrix.ApplicationWithWriter(&result)}
+			if diagnosticsEnabled {
+				options = append(options, naistrix.ApplicationWithDiagnosticWriter(&diagnostics))
+			}
+			app, flags, err := naistrix.NewApplication("streamtest", "Output streams", "v0.0.0", options...)
+			if err != nil {
+				t.Fatal(err)
+			}
+			flags.Config = filepath.Join(t.TempDir(), "config.yaml")
+			if err := app.AddCommand(&naistrix.Command{
+				Name: "show", Title: "Show a result",
+				PreRunHooks: []naistrix.PreRunHook{{Name: "notice", RunFunc: func(_ context.Context, out *naistrix.OutputWriter) error {
+					out.Warnln("hook warning")
+					return nil
+				}}},
+				RunFunc: func(_ context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
+					out.Successln("saved").Successf("saved %d\n", 1).
+						Infoln("loaded").Infof("loaded %d\n", 1).
+						Warnln("warning").Warnf("warning %d\n", 1).
+						Errorln("diagnostic").Errorf("diagnostic %d\n", 1).
+						Verboseln("verbose").Verbosef("verbose %d\n", 1).
+						Debugln("debug").Debugf("debug %d\n", 1).
+						Traceln("trace").Tracef("trace %d\n", 1)
+					return out.JSON().Render(map[string]string{"status": "confirmed"})
+				},
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if err := app.Run(naistrix.RunWithArgs([]string{"show", "-vvv"})); err != nil {
+				t.Fatal(err)
+			}
+			messages := result.String()
+			if diagnosticsEnabled {
+				messages = diagnostics.String()
+				var value map[string]string
+				decoder := json.NewDecoder(&result)
+				if err := decoder.Decode(&value); err != nil || value["status"] != "confirmed" {
+					t.Fatalf("invalid result: %v, %v", value, err)
+				}
+				if err := decoder.Decode(&value); err != io.EOF {
+					t.Fatalf("unexpected output after JSON result: %v", err)
+				}
+			} else if diagnostics.Len() != 0 {
+				t.Fatalf("legacy output unexpectedly used a separate stream: %q", diagnostics.String())
+			}
+			for _, message := range []string{"Initializing configuration", "hook warning", "saved", "saved 1", "loaded", "loaded 1", "warning", "warning 1", "diagnostic", "diagnostic 1", "verbose", "verbose 1", "debug", "debug 1", "trace", "trace 1"} {
+				if !strings.Contains(messages, message) {
+					t.Errorf("missing diagnostic %q in %q", message, messages)
+				}
+			}
+		})
+	}
+}
+
+func TestOutputWriter_PlainResultsUseTheirOwnWriter(t *testing.T) {
+	var first, second, diagnostics bytes.Buffer
+	level := naistrix.OutputVerbosityLevelNormal
+	out := naistrix.NewOutputWriterWithDiagnostics(&first, &diagnostics, &level)
+	_ = naistrix.NewOutputWriter(&second, &level)
+	out.Println("first").Printf("result %d\n", 1)
+	out.Warnln("separate diagnostic")
+	if first.String() != "first\nresult 1\n" || second.Len() != 0 {
+		t.Fatalf("results went to the wrong writer: first=%q, second=%q", first.String(), second.String())
+	}
+	if !strings.Contains(diagnostics.String(), "separate diagnostic") {
+		t.Fatalf("missing diagnostic: %q", diagnostics.String())
+	}
+}
 
 func TestOutputWriter_ConditionalOutput(t *testing.T) {
 	tests := []struct {

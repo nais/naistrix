@@ -40,6 +40,9 @@ type Application struct {
 	// writer is the output destination for the OutputWriter used in the application. Defaults to os.Stdout.
 	writer io.Writer
 
+	// diagnosticWriter receives status and verbosity-controlled output. A nil value uses writer.
+	diagnosticWriter io.Writer
+
 	// output is the output writer used in the application.
 	output *OutputWriter
 
@@ -96,6 +99,15 @@ type topLevelAliases map[string]*Command
 func ApplicationWithWriter(w io.Writer) ApplicationOptionFunc {
 	return func(a *Application) {
 		a.writer = w
+	}
+}
+
+// ApplicationWithDiagnosticWriter sets the destination for status messages and verbosity-controlled output.
+// Results, including JSON, YAML, tables and plain Print output, still use [ApplicationWithWriter].
+// By default all output uses the result writer, preserving existing applications' behavior.
+func ApplicationWithDiagnosticWriter(w io.Writer) ApplicationOptionFunc {
+	return func(a *Application) {
+		a.diagnosticWriter = w
 	}
 }
 
@@ -259,7 +271,7 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 			cmd.PrintErrln(err)
 		}
 	})
-	app.output = NewOutputWriter(app.writer, &app.flags.VerboseLevel)
+	app.output = NewOutputWriterWithDiagnostics(app.writer, app.diagnosticWriter, &app.flags.VerboseLevel)
 	app.completionPreparers[app.rootCommand] = completionPreparation{syncFlags: app.syncConfigAndFlagsForCompletion}
 
 	if err := setupFlags(app.rootCommand, nil, app.flags, app.rootCommand.PersistentFlags(), app.completionPreparers); err != nil {

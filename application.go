@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/nais/naistrix/input"
 	"github.com/nais/naistrix/internal/color"
 	"github.com/nais/naistrix/internal/configfile"
 	"github.com/nais/naistrix/internal/terminal"
@@ -227,6 +228,9 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 			}
 			if err := app.syncConfigAndFlags(cmd.Flags(), out); err != nil {
 				return err
+			}
+			if app.flags.NonInteractive {
+				cmd.SetContext(input.WithNonInteractive(cmd.Context()))
 			}
 
 			// Disable styling if NoColors flag is set or if stdout is not a TTY

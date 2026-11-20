@@ -28,7 +28,7 @@ type PreRunHook struct {
 }
 
 // PreRunHookFunc performs work before command validation and argument resolution.
-// The context is the one supplied through [RunWithContext], and output should use out.
+// The context derives from [RunWithContext] and carries the invocation's interaction policy. Output should use out.
 type PreRunHookFunc func(ctx context.Context, out *OutputWriter) error
 
 // SkipPreRunHooksFunc returns additional hook names to skip after all flags on the selected command path are

@@ -38,6 +38,7 @@ func main() {
 		"example",
 		"Example application with JSON output",
 		"v0.0.0",
+		naistrix.ApplicationWithDiagnosticWriter(os.Stderr),
 	)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "error when creating application: %v\n", err)
@@ -53,6 +54,7 @@ func main() {
 			Title: "Show users.",
 			Flags: flags,
 			RunFunc: func(_ context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
+				out.Infoln("Loaded users")
 				var opts []output.JSONOptionFunc
 				if flags.Pretty {
 					opts = append(opts, output.JSONWithPrettyOutput())

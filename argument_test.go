@@ -193,7 +193,7 @@ func TestDynamicArgumentPrompt(t *testing.T) {
 				promptArgument, selectArgument, confirmArgument = previousText, previousSelect, previousConfirm
 			})
 			selections := 0
-			answer := func(question string) (string, error) {
+			answer := func(_ context.Context, question string) (string, error) {
 				selections++
 				if tt.supplied || question != "#2 MEMBER: "+tt.want {
 					t.Errorf("unexpected question %q", question)
@@ -201,13 +201,13 @@ func TestDynamicArgumentPrompt(t *testing.T) {
 				return "alice", nil
 			}
 			promptArgument = answer
-			selectArgument = func(question string, choices []string, _ ...input.SelectOptionFunc) (string, error) {
+			selectArgument = func(ctx context.Context, question string, choices []string, _ ...input.SelectOptionFunc) (string, error) {
 				if !slices.Equal(choices, []string{"alice", "bob"}) {
 					t.Errorf("choices = %v, want alice and bob", choices)
 				}
-				return answer(question)
+				return answer(ctx, question)
 			}
-			confirmArgument = func(string, ...input.ConfirmOptionFunc) (bool, error) {
+			confirmArgument = func(context.Context, string, ...input.ConfirmOptionFunc) (bool, error) {
 				return selections == 1, nil
 			}
 			app, global, err := NewApplication("prompttest", "Test", "v0.0.0", ApplicationWithWriter(io.Discard))
@@ -307,11 +307,11 @@ func TestDynamicArgumentPromptError(t *testing.T) {
 		t.Run(kind, func(t *testing.T) {
 			previousText, previousSelect := promptArgument, selectArgument
 			defer func() { promptArgument, selectArgument = previousText, previousSelect }()
-			promptArgument = func(string) (string, error) {
+			promptArgument = func(context.Context, string) (string, error) {
 				t.Fatal("text prompt opened after PromptFunc failed")
 				return "", nil
 			}
-			selectArgument = func(string, []string, ...input.SelectOptionFunc) (string, error) {
+			selectArgument = func(context.Context, string, []string, ...input.SelectOptionFunc) (string, error) {
 				t.Fatal("selection opened after PromptFunc failed")
 				return "", nil
 			}

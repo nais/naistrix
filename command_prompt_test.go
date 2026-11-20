@@ -15,7 +15,7 @@ import (
 func enableArgumentPrompts(t *testing.T) {
 	t.Helper()
 	previous := argumentsInteractive
-	argumentsInteractive = func() bool { return true }
+	argumentsInteractive = func(context.Context) bool { return true }
 	t.Cleanup(func() { argumentsInteractive = previous })
 }
 
@@ -29,7 +29,7 @@ func TestCommandRejectsBlankPromptAnswers(t *testing.T) {
 			if repeatable {
 				answers = append(answers, "")
 			}
-			promptArgument = func(question string) (string, error) {
+			promptArgument = func(_ context.Context, question string) (string, error) {
 				wantQuestion := "#1 WORD: Enter a word"
 				if repeatable && len(answers) == 1 {
 					wantQuestion = "#1 WORD: Enter another value, or press Enter to finish"
@@ -80,7 +80,7 @@ func TestCommandPromptErrorAfterBlankAnswer(t *testing.T) {
 	defer func() { promptArgument = previousPrompt }()
 	wantError := errors.New("prompt cancelled")
 	calls := 0
-	promptArgument = func(string) (string, error) {
+	promptArgument = func(context.Context, string) (string, error) {
 		calls++
 		if calls == 1 {
 			return "", nil
@@ -150,7 +150,7 @@ func TestCommandPromptsForMissingArguments(t *testing.T) {
 			previousPrompt := promptArgument
 			defer func() { promptArgument = previousPrompt }()
 			questions := []string{"#1 ONE: First question", "#2 TWO: Second question", "#3 THREE: Third question"}[len(tt.provided):]
-			promptArgument = func(question string) (string, error) {
+			promptArgument = func(_ context.Context, question string) (string, error) {
 				if len(questions) == 0 || question != questions[0] {
 					t.Fatalf("unexpected prompt %q, remaining: %v", question, questions)
 				}
@@ -180,7 +180,7 @@ func TestCommandDefaultArgumentPrompts(t *testing.T) {
 			defer func() { promptArgument = previousPrompt }()
 			questions := []string{"#1 ONE: Enter a value", "#2 TWO: Custom question", "#3 THREE: Enter a value", "#3 THREE: Enter another value, or press Enter to finish"}
 			answers := []string{"first", "second", "third", ""}
-			promptArgument = func(question string) (string, error) {
+			promptArgument = func(_ context.Context, question string) (string, error) {
 				if disabled || len(questions) == 0 || question != questions[0] {
 					t.Fatalf("unexpected prompt %q, remaining: %v", question, questions)
 				}
@@ -218,16 +218,16 @@ func TestCommandDefaultArgumentPrompts(t *testing.T) {
 func TestCommandMissingArgumentsWithoutTerminal(t *testing.T) {
 	previousInteractive := argumentsInteractive
 	defer func() { argumentsInteractive = previousInteractive }()
-	argumentsInteractive = func() bool { return false }
+	argumentsInteractive = func(context.Context) bool { return false }
 	previousPrompt := promptArgument
 	defer func() { promptArgument = previousPrompt }()
-	promptArgument = func(string) (string, error) {
+	promptArgument = func(context.Context, string) (string, error) {
 		t.Fatal("prompt attempted without an interactive terminal")
 		return "", input.ErrNotInteractive
 	}
 	previousSelect := selectArgument
 	defer func() { selectArgument = previousSelect }()
-	selectArgument = func(string, []string, ...input.SelectOptionFunc) (string, error) {
+	selectArgument = func(context.Context, string, []string, ...input.SelectOptionFunc) (string, error) {
 		t.Fatal("selection attempted without an interactive terminal")
 		return "", input.ErrNotInteractive
 	}
@@ -285,7 +285,7 @@ func TestRepeatableChoiceCollection(t *testing.T) {
 			}()
 			wantError := errors.New("confirmation cancelled")
 			selections, confirmations := 0, 0
-			selectArgument = func(prompt string, choices []string, _ ...input.SelectOptionFunc) (string, error) {
+			selectArgument = func(_ context.Context, prompt string, choices []string, _ ...input.SelectOptionFunc) (string, error) {
 				if prompt != "#1 VALUE: Choose a value" || !reflect.DeepEqual(choices, []string{"foo", "bar"}) || selections >= 2 {
 					t.Fatalf("unexpected selection: %q, %v", prompt, choices)
 				}
@@ -293,7 +293,7 @@ func TestRepeatableChoiceCollection(t *testing.T) {
 				selections++
 				return value, nil
 			}
-			confirmArgument = func(prompt string, _ ...input.ConfirmOptionFunc) (bool, error) {
+			confirmArgument = func(_ context.Context, prompt string, _ ...input.ConfirmOptionFunc) (bool, error) {
 				if prompt != "Add another VALUE?" {
 					t.Errorf("unexpected confirmation %q", prompt)
 				}
@@ -335,7 +335,7 @@ func TestRepeatableTextCollectionError(t *testing.T) {
 	defer func() { promptArgument = previousPrompt }()
 	wantError := errors.New("input cancelled")
 	calls := 0
-	promptArgument = func(string) (string, error) {
+	promptArgument = func(context.Context, string) (string, error) {
 		calls++
 		if calls == 1 {
 			return "first", nil
@@ -369,7 +369,7 @@ func TestCommandCollectsRepeatableArguments(t *testing.T) {
 	previousPrompt := promptArgument
 	defer func() { promptArgument = previousPrompt }()
 	answers := []string{"hello", "two words", " \t "}
-	promptArgument = func(question string) (string, error) {
+	promptArgument = func(_ context.Context, question string) (string, error) {
 		wantQuestion := "#1 WORDS: Enter another value, or press Enter to finish"
 		if len(answers) == 3 {
 			wantQuestion = "#1 WORDS: Enter a word"
@@ -393,7 +393,7 @@ func TestCommandValidatesPromptedArguments(t *testing.T) {
 	enableArgumentPrompts(t)
 	previousPrompt := promptArgument
 	defer func() { promptArgument = previousPrompt }()
-	promptArgument = func(string) (string, error) { return "invalid", nil }
+	promptArgument = func(context.Context, string) (string, error) { return "invalid", nil }
 
 	app, _, err := NewApplication("app", "title", "v0.0.0", ApplicationWithWriter(io.Discard))
 	if err != nil {
@@ -453,18 +453,18 @@ func TestCommandArgumentChoices(t *testing.T) {
 				promptArgument = previousPrompt
 				confirmArgument = previousConfirm
 			}()
-			confirmArgument = func(prompt string, _ ...input.ConfirmOptionFunc) (bool, error) {
+			confirmArgument = func(_ context.Context, prompt string, _ ...input.ConfirmOptionFunc) (bool, error) {
 				if !tt.repeatable || len(tt.provided) > 0 || prompt != "Add another VALUE?" {
 					t.Errorf("unexpected confirmation: %q", prompt)
 				}
 				return false, nil
 			}
-			promptArgument = func(string) (string, error) {
+			promptArgument = func(context.Context, string) (string, error) {
 				t.Error("used text prompt instead of selection")
 				return "", nil
 			}
 			selections := 0
-			selectArgument = func(prompt string, choices []string, _ ...input.SelectOptionFunc) (string, error) {
+			selectArgument = func(_ context.Context, prompt string, choices []string, _ ...input.SelectOptionFunc) (string, error) {
 				selections++
 				question := tt.prompt
 				if question == "" {

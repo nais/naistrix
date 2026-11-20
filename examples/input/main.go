@@ -34,8 +34,8 @@ func main() {
 		&naistrix.Command{
 			Name:  "confirm",
 			Title: "Ask user for confirmation before continuing.",
-			RunFunc: func(_ context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
-				if ok, err := input.Confirm("Are you sure?"); err != nil {
+			RunFunc: func(ctx context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
+				if ok, err := input.ConfirmContext(ctx, "Are you sure?"); err != nil {
 					return fmt.Errorf("unable to get confirmation: %w", err)
 				} else if !ok {
 					out.Println("We will not continue.")
@@ -49,8 +49,8 @@ func main() {
 		&naistrix.Command{
 			Name:  "input",
 			Title: "Prompt the user for a free-form string value.",
-			RunFunc: func(_ context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
-				name, err := input.Input("What is your name?")
+			RunFunc: func(ctx context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
+				name, err := input.InputContext(ctx, "What is your name?")
 				if err != nil {
 					return fmt.Errorf("unable to get input: %w", err)
 				}
@@ -62,8 +62,8 @@ func main() {
 		&naistrix.Command{
 			Name:  "secret",
 			Title: "Collect sensitive text with asterisk masking.",
-			RunFunc: func(_ context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
-				token, err := input.Secret("API token")
+			RunFunc: func(ctx context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
+				token, err := input.SecretContext(ctx, "API token")
 				if err != nil {
 					return fmt.Errorf("unable to get secret: %w", err)
 				}
@@ -79,8 +79,8 @@ func main() {
 		&naistrix.Command{
 			Name:  "select",
 			Title: "Prompt the user to select a value from a list.",
-			RunFunc: func(_ context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
-				team, err := input.Select("Select a team", []Team{
+			RunFunc: func(ctx context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
+				team, err := input.SelectContext(ctx, "Select a team", []Team{
 					{Name: "team-1", Members: 4},
 					{Name: "team-2", Members: 7},
 					{Name: "team-3", Members: 3},
@@ -96,8 +96,8 @@ func main() {
 		&naistrix.Command{
 			Name:  "select-single-option",
 			Title: "Prompt the user to select a value from a list.",
-			RunFunc: func(_ context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
-				team, err := input.Select("Select a team", []Team{
+			RunFunc: func(ctx context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
+				team, err := input.SelectContext(ctx, "Select a team", []Team{
 					{Name: "team-1", Members: 4},
 				}, input.SelectWithAutoSelectSingleOption())
 				if err != nil {

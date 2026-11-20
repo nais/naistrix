@@ -314,7 +314,7 @@ func (c *Command) cobraRun(out *OutputWriter) func(*cobra.Command, []string) err
 				return ErrDeprecatedCommandWithoutReplacement
 			}
 
-			executeReplacement, err := input.Confirm("Do you want to proceed with the replacement command?")
+			executeReplacement, err := input.ConfirmContext(ctx, "Do you want to proceed with the replacement command?")
 			if err != nil {
 				return err
 			}
@@ -327,7 +327,7 @@ func (c *Command) cobraRun(out *OutputWriter) func(*cobra.Command, []string) err
 	}
 
 	return func(cmd *cobra.Command, args []string) error {
-		prompt := len(args) < len(c.Args) && !c.DisableArgumentPrompts && argumentsInteractive()
+		prompt := len(args) < len(c.Args) && !c.DisableArgumentPrompts && argumentsInteractive(cmd.Context())
 		resolved, err := c.resolveArguments(cmd.Context(), args, out, prompt)
 		if err != nil {
 			return err

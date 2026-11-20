@@ -24,10 +24,10 @@ const (
 )
 
 var (
-	promptArgument       = input.Input
-	selectArgument       = input.Select[string]
-	confirmArgument      = input.Confirm
-	argumentsInteractive = input.IsInteractive
+	promptArgument       = input.InputContext
+	selectArgument       = input.SelectContext[string]
+	confirmArgument      = input.ConfirmContext
+	argumentsInteractive = input.IsInteractiveContext
 )
 
 // Argument represents a positional argument for a command. All arguments for a command will be grouped together in a
@@ -181,9 +181,9 @@ func (a Argument) promptValues(ctx context.Context, out *OutputWriter, position 
 		var value string
 		var err error
 		if len(a.Choices) > 0 {
-			value, err = selectArgument(prompt, a.Choices)
+			value, err = selectArgument(ctx, prompt, a.Choices)
 		} else {
-			value, err = promptArgument(prompt)
+			value, err = promptArgument(ctx, prompt)
 		}
 		if err != nil {
 			return nil, err
@@ -203,7 +203,7 @@ func (a Argument) promptValues(ctx context.Context, out *OutputWriter, position 
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
-			more, err := confirmArgument(fmt.Sprintf(repeatableArgumentConfirm, name))
+			more, err := confirmArgument(ctx, fmt.Sprintf(repeatableArgumentConfirm, name))
 			if err != nil {
 				return nil, err
 			}

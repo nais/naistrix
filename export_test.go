@@ -1,6 +1,7 @@
 package naistrix
 
 import (
+	"context"
 	"io"
 
 	"github.com/nais/naistrix/input"
@@ -15,7 +16,10 @@ func SetCompletionErrorWriterForTest(app *Application, writer io.Writer) {
 // Tests must restore the hooks and must not run in parallel.
 func SetChoicePromptForTest(selectChoice func(string, []string, ...input.SelectOptionFunc) (string, error)) func() {
 	previousSelect, previousInteractive := selectArgument, argumentsInteractive
-	selectArgument, argumentsInteractive = selectChoice, func() bool { return true }
+	selectArgument = func(_ context.Context, prompt string, choices []string, opts ...input.SelectOptionFunc) (string, error) {
+		return selectChoice(prompt, choices, opts...)
+	}
+	argumentsInteractive = func(context.Context) bool { return true }
 	return func() {
 		selectArgument, argumentsInteractive = previousSelect, previousInteractive
 	}
@@ -25,6 +29,8 @@ func SetChoicePromptForTest(selectChoice func(string, []string, ...input.SelectO
 // Tests must restore the hook and must not run in parallel.
 func SetArgumentConfirmationForTest(confirm func(string, ...input.ConfirmOptionFunc) (bool, error)) func() {
 	previous := confirmArgument
-	confirmArgument = confirm
+	confirmArgument = func(_ context.Context, prompt string, opts ...input.ConfirmOptionFunc) (bool, error) {
+		return confirm(prompt, opts...)
+	}
 	return func() { confirmArgument = previous }
 }

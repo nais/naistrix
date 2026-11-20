@@ -35,6 +35,9 @@ type GlobalFlags struct {
 	// NoColors can be used to disable colored output.
 	NoColors bool `name:"no-colors" usage:"Disable colors in the output."`
 
+	// NonInteractive disables framework and context-aware prompts for this invocation.
+	NonInteractive bool `name:"non-interactive" usage:"Disable framework and context-aware prompts."`
+
 	// Config is the location of the configuration file.
 	Config string `name:"config" usage:"Specify the |path| to the configuration file."`
 }

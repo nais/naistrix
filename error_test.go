@@ -15,11 +15,7 @@ import (
 
 func TestRenderErrorJSON(t *testing.T) {
 	cause := errors.New("private upstream response")
-	coded := &naistrix.CodedError{
-		Code:    "permission_denied",
-		Message: "You cannot update this resource.",
-		Err:     cause,
-	}
+	coded := naistrix.NewCodedError("permission_denied", "You cannot update this resource.", cause)
 	wrapped := fmt.Errorf("private request context: %w", coded)
 	if !errors.Is(wrapped, cause) {
 		t.Fatal("wrapped error lost its cause")
@@ -49,7 +45,7 @@ func TestRenderErrorJSON(t *testing.T) {
 		},
 		{
 			name:        "missing code does not expose cause",
-			err:         &naistrix.CodedError{Message: "Update failed.", Err: cause},
+			err:         naistrix.NewCodedError("", "Update failed.", cause),
 			wantCode:    "error",
 			wantMessage: "Update failed.",
 		},
@@ -79,6 +75,21 @@ func TestRenderErrorJSON(t *testing.T) {
 				t.Fatalf("expected exactly one JSON document, got %v", err)
 			}
 		})
+	}
+}
+
+func TestCodedErrorMarshalOmitsCause(t *testing.T) {
+	coded := naistrix.NewCodedError("denied", "Access denied.", &naistrix.Error{Message: "private details"})
+	data, err := json.Marshal(coded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fields map[string]string
+	if err := json.Unmarshal(data, &fields); err != nil {
+		t.Fatal(err)
+	}
+	if len(fields) != 2 || fields["Code"] != coded.Code || fields["Message"] != coded.Message {
+		t.Fatalf("expected only the public fields, got %s", data)
 	}
 }
 

@@ -26,13 +26,19 @@ func Errorf(format string, a ...any) Error {
 	return Error{Message: fmt.Sprintf(format, a...)}
 }
 
-// CodedError associates a stable machine-readable code and public message with an optional cause.
-// Callers define their own codes. The cause remains available to [errors.Is] and [errors.As],
-// but is not included in the public message or JSON output.
+// CodedError associates a stable machine-readable code and public message with an optional cause. Callers define their
+// own codes. The cause remains available to [errors.Is] and [errors.As], but is not included in the public message or
+// JSON output.
 type CodedError struct {
 	Code    string
 	Message string
-	Err     error
+	err     error
+}
+
+// NewCodedError creates an error with a public code and message and an optional cause. Pass nil if there is no
+// underlying error.
+func NewCodedError(code, message string, err error) *CodedError {
+	return &CodedError{Code: code, Message: message, err: err}
 }
 
 // Error returns the public message without exposing the underlying cause.
@@ -42,7 +48,7 @@ func (e *CodedError) Error() string {
 
 // Unwrap returns the underlying cause.
 func (e *CodedError) Unwrap() error {
-	return e.Err
+	return e.err
 }
 
 // ErrorFormat selects how [RenderError] presents an error.

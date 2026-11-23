@@ -20,10 +20,7 @@ func run() error {
 		Name:  "fail",
 		Title: "Demonstrate a failure without changing any resources.",
 		RunFunc: func(context.Context, *naistrix.Arguments, *naistrix.OutputWriter) error {
-			return &naistrix.CodedError{
-				Code:    "permission_denied",
-				Message: "You cannot update this resource.",
-			}
+			return naistrix.NewCodedError("permission_denied", "You cannot update this resource.", nil)
 		},
 	}); err != nil {
 		return err

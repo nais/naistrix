@@ -19,22 +19,17 @@ var interactive = func() bool {
 	return terminal.IsTerminal(os.Stdin) && terminal.IsTerminal(os.Stdout)
 }
 
-// IsInteractive reports whether standard input and standard output are both terminals.
-func IsInteractive() bool {
-	return interactive()
-}
-
 type nonInteractiveKey struct{}
 
-// WithNonInteractive returns a context that disables context-aware prompts, even with a terminal.
+// WithNonInteractive returns a context that disables prompts, even with a terminal.
 // It applies only to this context and its descendants and never implies confirmation or consent.
 func WithNonInteractive(ctx context.Context) context.Context {
 	return context.WithValue(ctx, nonInteractiveKey{}, true)
 }
 
-// IsInteractiveContext reports whether ctx permits interaction and standard input and output are terminals.
-// Unlike [IsInteractive], it honors [WithNonInteractive].
-func IsInteractiveContext(ctx context.Context) bool {
+// IsInteractive reports whether ctx permits interaction and standard input and output are terminals.
+// Pass [context.Background] if you only want to check terminal availability.
+func IsInteractive(ctx context.Context) bool {
 	disabled, _ := ctx.Value(nonInteractiveKey{}).(bool)
-	return !disabled && IsInteractive()
+	return !disabled && interactive()
 }

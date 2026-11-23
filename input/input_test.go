@@ -19,7 +19,7 @@ func TestInput_ReturnsValue(t *testing.T) {
 		_ = keyboard.SimulateKeyPress(keys.Enter)
 	}()
 
-	if result, err := input.Input("Enter something"); err != nil {
+	if result, err := input.Input(t.Context(), "Enter something"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	} else if result != "hi" {
 		t.Errorf("expected %q, got %q", "hi", result)
@@ -36,7 +36,7 @@ func TestInput_DefaultValueOnEnter(t *testing.T) {
 		_ = keyboard.SimulateKeyPress(keys.Enter)
 	}()
 
-	if result, err := input.Input("Enter something"); err != nil {
+	if result, err := input.Input(t.Context(), "Enter something"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	} else if result != "" {
 		t.Errorf("expected empty string, got %q", result)

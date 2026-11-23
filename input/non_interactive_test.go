@@ -26,22 +26,22 @@ func TestContextPromptsRefuseDisabledOrCanceledInteraction(t *testing.T) {
 		call func(context.Context) error
 	}{
 		{name: "input", call: func(ctx context.Context) error {
-			_, err := input.InputContext(ctx, "Name")
+			_, err := input.Input(ctx, "Name")
 			return err
 		}},
 		{name: "secret", call: func(ctx context.Context) error {
-			_, err := input.SecretContext(ctx, "Token")
+			_, err := input.Secret(ctx, "Token")
 			return err
 		}},
 		{name: "confirmation with default yes", call: func(ctx context.Context) error {
-			confirmed, err := input.ConfirmContext(ctx, "Proceed?", input.ConfirmWithDefaultTrue())
+			confirmed, err := input.Confirm(ctx, "Proceed?", input.ConfirmWithDefaultTrue())
 			if confirmed {
 				t.Error("disabled or canceled interaction must not imply confirmation")
 			}
 			return err
 		}},
 		{name: "selection", call: func(ctx context.Context) error {
-			_, err := input.SelectContext(ctx, "Pick one", []string{"one", "two"})
+			_, err := input.Select(ctx, "Pick one", []string{"one", "two"})
 			return err
 		}},
 	}
@@ -63,20 +63,23 @@ func TestContextPromptsRefuseDisabledOrCanceledInteraction(t *testing.T) {
 			}
 		})
 	}
-	value, err := input.SelectContext(disabled, "Pick one", []string{"only"}, input.SelectWithAutoSelectSingleOption())
+	value, err := input.Select(disabled, "Pick one", []string{"only"}, input.SelectWithAutoSelectSingleOption())
 	if err != nil || value != "only" {
 		t.Fatalf("non-prompting single selection = %q, %v", value, err)
 	}
-	if _, err := input.SelectContext(canceled, "Pick one", []string{"only"}, input.SelectWithAutoSelectSingleOption()); !errors.Is(err, context.Canceled) {
+	if _, err := input.Select(canceled, "Pick one", []string{"only"}, input.SelectWithAutoSelectSingleOption()); !errors.Is(err, context.Canceled) {
 		t.Fatalf("canceled single selection = %v, want context cancellation", err)
 	}
 	duringLabels, cancelLabels := context.WithCancel(disabled)
 	defer cancelLabels()
-	_, err = input.SelectContext(duringLabels, "Pick one", []cancelingChoice{{label: "one", cancel: cancelLabels}, {label: "two"}})
+	_, err = input.Select(duringLabels, "Pick one", []cancelingChoice{{label: "one", cancel: cancelLabels}, {label: "two"}})
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancellation during label formatting = %v, want context cancellation", err)
 	}
-	if !input.IsInteractiveContext(base) || !input.IsInteractive() {
+	if input.IsInteractive(disabled) {
+		t.Error("interaction is allowed in a non-interactive context")
+	}
+	if !input.IsInteractive(base) || !input.IsInteractive(context.Background()) {
 		t.Error("context policy leaked into the parent context or terminal detection")
 	}
 	if output := readOutput(); output != "" {
@@ -129,7 +132,7 @@ func TestNonInteractiveInvocation(t *testing.T) {
 					Name: "policy",
 					RunFunc: func(ctx context.Context, _ *naistrix.OutputWriter) error {
 						hookCalls++
-						if input.IsInteractiveContext(ctx) != tt.interactive {
+						if input.IsInteractive(ctx) != tt.interactive {
 							t.Error("interaction policy was not established before hooks")
 							return errors.New("unexpected interaction policy")
 						}
@@ -137,7 +140,7 @@ func TestNonInteractiveInvocation(t *testing.T) {
 							t.Error("invocation lost its caller context")
 						}
 						if tt.confirmation {
-							_, err := input.ConfirmContext(ctx, "Approve the change?", input.ConfirmWithDefaultTrue())
+							_, err := input.Confirm(ctx, "Approve the change?", input.ConfirmWithDefaultTrue())
 							return err
 						}
 						return nil
@@ -158,7 +161,7 @@ func TestNonInteractiveInvocation(t *testing.T) {
 				Args: []naistrix.Argument{argument},
 				RunFunc: func(ctx context.Context, args *naistrix.Arguments, _ *naistrix.OutputWriter) error {
 					called = true
-					if input.IsInteractiveContext(ctx) != tt.interactive || args.Get("resource") != "one" {
+					if input.IsInteractive(ctx) != tt.interactive || args.Get("resource") != "one" {
 						t.Error("handler received unexpected policy or arguments")
 					}
 					return nil
@@ -190,7 +193,7 @@ func TestNonInteractiveInvocation(t *testing.T) {
 			}
 		})
 	}
-	if !input.IsInteractiveContext(base) {
+	if !input.IsInteractive(base) {
 		t.Error("invocation policy changed the caller's context")
 	}
 }

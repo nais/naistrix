@@ -2,10 +2,12 @@
 
 Gathering input from the user is a common task for CLI tools. naistrix has some helper functions to achieve this located in the `github.com/nais/naistrix/input` package.
 
-Use the context-aware helpers inside commands and hooks so `--non-interactive`
+Pass the command or hook context to the input helpers so `--non-interactive`
 disables prompting even in a terminal. They check cancellation before prompting,
-but do not cancel a running prompt. The original helpers remain available and
-only check terminal availability.
+but do not cancel a running prompt.
+
+If you use a third-party prompt library, check `input.IsInteractive(ctx)`
+before opening a prompt.
 
 For example, `go run ./examples/input confirm --non-interactive` fails without
 asking or confirming, while `go run ./examples/input select-single-option
@@ -13,12 +15,12 @@ asking or confirming, while `go run ./examples/input select-single-option
 
 ## Confirm
 
-If you want to ask the user for confirmation, you can use `ConfirmContext`:
+If you want to ask the user for confirmation, you can use `Confirm`:
 
 ```go
 err := app.AddCommand(&naistrix.Command{
     RunFunc: func (ctx context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
-        if ok, err := input.ConfirmContext(ctx, "Are you sure you want to continue?"); err != nil {
+        if ok, err := input.Confirm(ctx, "Are you sure you want to continue?"); err != nil {
             return fmt.Errorf("unable to get confirmation: %w", err)
         } else if !ok {
             out.Println("We will not continue.")
@@ -34,12 +36,12 @@ err := app.AddCommand(&naistrix.Command{
 
 ## Input
 
-If you want to ask the user for input, you can use `InputContext`:
+If you want to ask the user for input, you can use `Input`:
 
 ```go
 err := app.AddCommand(&naistrix.Command{
     RunFunc: func(ctx context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
-        name, err := input.InputContext(ctx, "What is your name?")
+        name, err := input.Input(ctx, "What is your name?")
         if err != nil {
             return fmt.Errorf("unable to get input: %w", err)
         }
@@ -53,10 +55,10 @@ err := app.AddCommand(&naistrix.Command{
 
 ## Secret
 
-Use `SecretContext` to collect passwords, API tokens, or other sensitive text with typed characters displayed as `*` instead of the actual input:
+Use `Secret` to collect passwords, API tokens, or other sensitive text with typed characters displayed as `*` instead of the actual input:
 
 ```go
-token, err := input.SecretContext(ctx, "API token")
+token, err := input.Secret(ctx, "API token")
 if err != nil {
     return fmt.Errorf("unable to get secret: %w", err)
 }
@@ -65,7 +67,7 @@ if err != nil {
 
 Masking hides the characters, not the input's length. The returned text is not trimmed; an empty submission returns an empty string. Do not print or log the returned secret.
 
-Like the other context-aware input helpers, `SecretContext` requires interactive
+Like the other input helpers that prompt, `Secret` requires interactive
 standard input and output and an invocation that allows interaction; otherwise it
 returns `input.ErrNotInteractive`.
 
@@ -73,12 +75,12 @@ Try it with `go run ./examples/input secret` from the repository root.
 
 ## Select
 
-If you have a list of items that you want the user to select from, you can use `SelectContext`:
+If you have a list of items that you want the user to select from, you can use `Select`:
 
 ```go
 err := app.AddCommand(&naistrix.Command{
     RunFunc: func(ctx context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
-        option, err := input.SelectContext(ctx, "Select an option", []string{"option1", "option2", "option3"})
+        option, err := input.Select(ctx, "Select an option", []string{"option1", "option2", "option3"})
         if err != nil {
             return fmt.Errorf("unable to get selection: %w", err)
         }
@@ -90,4 +92,4 @@ err := app.AddCommand(&naistrix.Command{
 })
 ```
 
-The slice you pass to `SelectContext` can be of any type, but for complex types it is recommended to implement the `fmt.Stringer` interface to provide a user-friendly representation of the options.
+The slice you pass to `Select` can be of any type, but for complex types it is recommended to implement the `fmt.Stringer` interface to provide a user-friendly representation of the options.

@@ -28,7 +28,7 @@ func run() error {
 			return err
 		}
 		if flags.Token == "" {
-			token, err := input.InputContext(ctx, "Demo access token")
+			token, err := input.Input(ctx, "Demo access token")
 			if err != nil {
 				return err
 			}

@@ -12,27 +12,6 @@ Use `go get` to fetch the latest version of Naistrix:
 go get github.com/nais/naistrix@latest
 ```
 
-## Non-interactive execution
-
-Use `--non-interactive` to disable framework and context-aware prompts even when a
-terminal is available. The invocation policy is established before pre-run hooks
-and argument resolution. Missing required arguments fail, and confirmations return
-`input.ErrNotInteractive`; the flag never implies yes, consent or permission.
-Fully specified commands, configured defaults and explicit single-option
-auto-selection continue to work without prompting.
-
-Commands and hooks must pass their context to `input.InputContext`,
-`ConfirmContext`, `SelectContext` and `SecretContext`, or check
-`input.IsInteractiveContext(ctx)` before starting their own interactive flow.
-Embedders can also use `input.WithNonInteractive(ctx)` with `RunWithContext`.
-The policy is context-scoped, not a process-global toggle.
-
-Existing helpers without a context retain their terminal-only behavior and cannot
-honor this invocation policy; migrate those calls to the context-aware variants.
-External prompt libraries must likewise be gated by the application. Cancellation
-is checked before prompting, not while a prompt is running. The
-[input](examples/input/) and [hook](examples/hooks/) examples demonstrate the APIs.
-
 ## Usage
 
 Please have a look at the [examples](examples/) directory for usage examples.

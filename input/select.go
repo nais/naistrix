@@ -24,13 +24,8 @@ type selectOptions struct {
 
 // Select prompts the user to select one value from the provided options and returns the selected value. The string
 // representation of each option are shown in the prompt.
-func Select[T any](prompt string, selection []T, opts ...SelectOptionFunc) (T, error) {
-	return SelectContext(context.Background(), prompt, selection, opts...)
-}
-
-// SelectContext is [Select] with invocation-scoped interaction policy and a cancellation check before prompting.
 // Explicit single-option auto-selection still works when interaction is disabled because it does not prompt.
-func SelectContext[T any](ctx context.Context, prompt string, selection []T, opts ...SelectOptionFunc) (T, error) {
+func Select[T any](ctx context.Context, prompt string, selection []T, opts ...SelectOptionFunc) (T, error) {
 	options := &selectOptions{
 		autoSelectSingleOption: false,
 	}
@@ -67,7 +62,7 @@ func SelectContext[T any](ctx context.Context, prompt string, selection []T, opt
 	if err := ctx.Err(); err != nil {
 		return empty, err
 	}
-	if !IsInteractiveContext(ctx) {
+	if !IsInteractive(ctx) {
 		return empty, ErrNotInteractive
 	}
 

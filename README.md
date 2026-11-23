@@ -15,6 +15,8 @@ go get github.com/nais/naistrix@latest
 ## Usage
 
 Please have a look at the [examples](examples/) directory for usage examples.
+See the [command wizard example](examples/wizard/) for guided input collection
+and previews of equivalent CLI invocations.
 
 ### Application lifecycle
 

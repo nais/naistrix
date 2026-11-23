@@ -79,11 +79,8 @@ type Application struct {
 	// config is the Viper configuration instance used for managing application configuration.
 	config *viper.Viper
 
-	// completionPreparers selects synchronization and validation for the actual target of inherited flag callbacks.
-	completionPreparers completionPreparers
-
-	// commandDefinitions maps executable Cobra commands to their public definitions.
-	commandDefinitions map[*cobra.Command]*Command
+	// registry holds synchronization, validation, and flag metadata for each command.
+	registry *commandRegistry
 
 	// preRunHooks run before command validation and argument resolution.
 	preRunHooks []PreRunHook
@@ -208,8 +205,7 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 		},
 		config:              v,
 		defaultsCommandName: "defaults",
-		completionPreparers: make(completionPreparers),
-		commandDefinitions:  make(map[*cobra.Command]*Command),
+		registry:            newCommandRegistry(),
 	}
 
 	for _, opt := range opts {
@@ -237,7 +233,8 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 		Version:            app.version,
 		SilenceErrors:      true,
 		DisableSuggestions: true,
-		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			app.registry.wizardTarget = nil
 			out := app.output
 			if cmd.Name() == cobra.ShellCompRequestCmd {
 				out = NewOutputWriter(io.Discard, io.Discard, &app.flags.VerboseLevel)
@@ -254,7 +251,13 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 				pterm.DisableStyling()
 			}
 
-			return app.prepareCommand(cmd)
+			if err := app.prepareCommand(cmd); err != nil {
+				return err
+			}
+			if app.registry.shouldRunWizard(cmd, args) {
+				app.registry.wizardTarget = cmd
+			}
+			return nil
 		},
 	}
 	app.rootCommand.CompletionOptions.SetDefaultShellCompDirective(cobra.ShellCompDirectiveNoFileComp)
@@ -281,9 +284,9 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 		}
 	})
 	app.output = NewOutputWriter(app.writer, app.diagnosticWriter, &app.flags.VerboseLevel)
-	app.completionPreparers[app.rootCommand] = completionPreparation{syncFlags: app.syncConfigAndFlagsForCompletion}
+	app.registry.preparations[app.rootCommand] = completionPreparation{syncFlags: app.syncConfigAndFlagsForCompletion}
 
-	if err := setupFlags(app.rootCommand, nil, app.flags, app.rootCommand.PersistentFlags(), app.completionPreparers); err != nil {
+	if err := setupFlags(app.rootCommand, nil, app.flags, app.rootCommand.PersistentFlags(), app.registry); err != nil {
 		return nil, nil, fmt.Errorf("failed to setup application flags: %w", err)
 	}
 
@@ -331,12 +334,11 @@ func (a *Application) AddCommand(cmd *Command, cmds ...*Command) error {
 			return fmt.Errorf("command %q is not allowed to have top-level aliases", c.Name)
 		}
 
-		if err := c.init(a.name, a.output, usageTemplate, a.config, a.syncConfigAndFlagsForCompletion, nil, a.completionPreparers); err != nil {
+		if err := c.init(a.name, a.output, usageTemplate, a.config, a.syncConfigAndFlagsForCompletion, nil, a.registry); err != nil {
 			return fmt.Errorf("failed to initialize command %q: %w", c.Name, err)
 		}
 
 		a.rootCommand.AddCommand(c.cobraCmd)
-		a.registerCommandDefinitions(c)
 
 		if err := collectTopLevelAliases(c, aliases); err != nil {
 			return fmt.Errorf("failed to collect top-level aliases: %w", err)
@@ -398,7 +400,7 @@ func (a *Application) createAliasCommand(alias string, c *Command) *cobra.Comman
 // AddGlobalFlags adds global flags to the application. These flags will be available for all subcommands of the
 // application. The passed flags must be a pointer to a struct where each field represents a flag.
 func (a *Application) AddGlobalFlags(flags any) error {
-	if err := setupFlags(a.rootCommand, nil, flags, a.rootCommand.PersistentFlags(), a.completionPreparers); err != nil {
+	if err := setupFlags(a.rootCommand, nil, flags, a.rootCommand.PersistentFlags(), a.registry); err != nil {
 		return fmt.Errorf("failed to setup global flags: %w", err)
 	}
 

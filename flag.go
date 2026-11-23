@@ -31,16 +31,16 @@ const (
 // GlobalFlags defines flags that are global to all commands.
 type GlobalFlags struct {
 	// VerboseLevel indicates the verbosity level of the application.
-	VerboseLevel Count `name:"verbose" short:"v" usage:"Set verbosity level. Use -v for verbose, -vv for debug, -vvv for trace."`
+	VerboseLevel Count `name:"verbose" short:"v" usage:"Set verbosity level. Use -v for verbose, -vv for debug, -vvv for trace." wizard:"ignore"`
 
 	// NoColors can be used to disable colored output.
-	NoColors bool `name:"no-colors" usage:"Disable colors in the output."`
+	NoColors bool `name:"no-colors" usage:"Disable colors in the output." wizard:"ignore"`
 
 	// NonInteractive disables framework and context-aware prompts for this invocation.
-	NonInteractive bool `name:"non-interactive" usage:"Disable framework and context-aware prompts."`
+	NonInteractive bool `name:"non-interactive" usage:"Disable framework and context-aware prompts." wizard:"ignore"`
 
 	// Config is the location of the configuration file.
-	Config string `name:"config" usage:"Specify the |path| to the configuration file."`
+	Config string `name:"config" usage:"Specify the |path| to the configuration file." wizard:"ignore"`
 }
 
 // IsVerbose checks if the application is running in verbose mode (-v).
@@ -142,7 +142,7 @@ func setupFlag(name, short, usage string, value any, flags *pflag.FlagSet) error
 	return nil
 }
 
-func setupFlags(cmd *cobra.Command, inputArgs []Argument, flags any, flagSet *pflag.FlagSet, preparers completionPreparers) error {
+func setupFlags(cmd *cobra.Command, inputArgs []Argument, flags any, flagSet *pflag.FlagSet, registry *commandRegistry) error {
 	if flags == nil {
 		return nil
 	}
@@ -176,17 +176,28 @@ func setupFlags(cmd *cobra.Command, inputArgs []Argument, flags any, flagSet *pf
 		flagName := getFlagName(field)
 		flagUsage := getFlagUsage(field)
 		flagShort := getFlagShort(field)
+		wizard, hasWizard := field.Tag.Lookup("wizard")
+		if hasWizard && wizard != "ignore" {
+			return fmt.Errorf("flag %q has unsupported wizard tag %q: expected ignore", flagName, wizard)
+		}
+		sensitive, hasSensitive := field.Tag.Lookup("sensitive")
+		if hasSensitive && sensitive != "true" && sensitive != "false" {
+			return fmt.Errorf("flag %q has unsupported sensitive tag %q: expected true or false", flagName, sensitive)
+		}
 
 		actualValue := value.Addr().Interface()
 		if err := setupFlag(flagName, flagShort, normalizeUsage(flagUsage), unwrap(actualValue), flagSet); err != nil {
 			return fmt.Errorf("failed to setup flag %q: %w", flagName, err)
+		}
+		registry.flags[flagSet.Lookup(flagName)] = flagBinding{
+			value: value, ignored: wizard == "ignore", sensitive: sensitive == "true",
 		}
 
 		switch v := actualValue.(type) {
 		case FlagAutoCompleter:
 			err := cmd.RegisterFlagCompletionFunc(
 				flagName,
-				preparers.wrapFlagCompletion(func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+				registry.wrapFlagCompletion(func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 					var existing []string
 					if flag := cmd.Flags().Lookup(flagName); flag != nil {
 						if value, ok := flag.Value.(pflag.SliceValue); ok {
@@ -215,7 +226,7 @@ func setupFlags(cmd *cobra.Command, inputArgs []Argument, flags any, flagSet *pf
 		case FileAutoCompleter:
 			_ = cmd.RegisterFlagCompletionFunc(
 				flagName,
-				preparers.wrapFlagCompletion(func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+				registry.wrapFlagCompletion(func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 					return autocompleteFiles(v.FileExtensions())(cmd, args, toComplete)
 				}),
 			)

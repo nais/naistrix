@@ -9,10 +9,7 @@ import (
 )
 
 func run() error {
-	app, _, err := naistrix.NewApplication(
-		"example", "Example application with structured errors", "v0.0.0",
-		naistrix.ApplicationWithUsageOnError(false),
-	)
+	app, _, err := naistrix.NewApplication("example", "Example application with structured errors", "v0.0.0")
 	if err != nil {
 		return err
 	}

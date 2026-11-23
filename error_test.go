@@ -11,9 +11,10 @@ import (
 	"testing"
 
 	"github.com/nais/naistrix"
+	"gopkg.in/yaml.v3"
 )
 
-func TestRenderErrorJSON(t *testing.T) {
+func TestRenderErrorStructured(t *testing.T) {
 	cause := errors.New("private upstream response")
 	coded := naistrix.NewCodedError("permission_denied", "You cannot update this resource.", cause)
 	wrapped := fmt.Errorf("private request context: %w", coded)
@@ -57,24 +58,32 @@ func TestRenderErrorJSON(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var out bytes.Buffer
-			if err := naistrix.RenderError(&out, tt.err, naistrix.ErrorFormatJSON); err != nil {
-				t.Fatal(err)
-			}
-			decoder := json.NewDecoder(&out)
-			var result map[string]string
-			if err := decoder.Decode(&result); err != nil {
-				t.Fatal(err)
-			}
-			if len(result) != 2 || result["code"] != tt.wantCode || result["message"] != tt.wantMessage {
-				t.Fatalf("unexpected error details: %#v", result)
-			}
-			var extra any
-			if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
-				t.Fatalf("expected exactly one JSON document, got %v", err)
-			}
-		})
+		for _, format := range []naistrix.ErrorFormat{naistrix.ErrorFormatJSON, naistrix.ErrorFormatYAML} {
+			t.Run(string(format)+"/"+tt.name, func(t *testing.T) {
+				var out bytes.Buffer
+				if err := naistrix.RenderError(&out, tt.err, format); err != nil {
+					t.Fatal(err)
+				}
+				if !strings.HasSuffix(out.String(), "\n") {
+					t.Fatalf("expected a trailing newline, got %q", out.String())
+				}
+				decode := json.NewDecoder(&out).Decode
+				if format == naistrix.ErrorFormatYAML {
+					decode = yaml.NewDecoder(&out).Decode
+				}
+				var result map[string]string
+				if err := decode(&result); err != nil {
+					t.Fatal(err)
+				}
+				if len(result) != 2 || result["code"] != tt.wantCode || result["message"] != tt.wantMessage {
+					t.Fatalf("unexpected error details: %#v", result)
+				}
+				var extra any
+				if err := decode(&extra); !errors.Is(err, io.EOF) {
+					t.Fatalf("expected exactly one document, got %v", err)
+				}
+			})
+		}
 	}
 }
 
@@ -123,11 +132,11 @@ func TestRenderErrorLegacy(t *testing.T) {
 
 func TestRenderErrorFailures(t *testing.T) {
 	writeErr := errors.New("destination closed")
-	for _, format := range []naistrix.ErrorFormat{naistrix.ErrorFormatText, naistrix.ErrorFormatJSON} {
+	for _, format := range []naistrix.ErrorFormat{naistrix.ErrorFormatText, naistrix.ErrorFormatJSON, naistrix.ErrorFormatYAML} {
 		t.Run(string(format), func(t *testing.T) {
 			err := naistrix.RenderError(errorRenderWriter{err: writeErr}, errors.New("failed"), format)
-			if !errors.Is(err, writeErr) {
-				t.Fatalf("render error = %v, want %v", err, writeErr)
+			if err != writeErr {
+				t.Fatalf("render error = %v, want original writer error %v", err, writeErr)
 			}
 		})
 	}
@@ -145,23 +154,16 @@ func TestApplicationUsageOnError(t *testing.T) {
 	tests := []struct {
 		name        string
 		args        []string
-		suppress    bool
-		wantUsage   bool
 		wantFailure bool
 	}{
-		{name: "default flag error", args: []string{"read", "--unknown"}, wantUsage: true, wantFailure: true},
-		{name: "quiet flag error", args: []string{"read", "--unknown"}, suppress: true, wantFailure: true},
-		{name: "quiet argument error", args: []string{"read"}, suppress: true, wantFailure: true},
-		{name: "explicit help remains available", args: []string{"read", "--help"}, suppress: true, wantUsage: true},
+		{name: "unknown flag", args: []string{"read", "--unknown"}, wantFailure: true},
+		{name: "missing argument", args: []string{"read"}, wantFailure: true},
+		{name: "explicit help", args: []string{"read", "--help"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var out bytes.Buffer
-			options := []naistrix.ApplicationOptionFunc{naistrix.ApplicationWithWriter(&out)}
-			if tt.suppress {
-				options = append(options, naistrix.ApplicationWithUsageOnError(false))
-			}
-			app, _, err := naistrix.NewApplication("app", "title", "v0.0.0", options...)
+			app, _, err := naistrix.NewApplication("app", "title", "v0.0.0", naistrix.ApplicationWithWriter(&out))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -179,11 +181,8 @@ func TestApplicationUsageOnError(t *testing.T) {
 			if (err != nil) != tt.wantFailure {
 				t.Fatalf("run error = %v, want failure %v", err, tt.wantFailure)
 			}
-			if got := strings.Contains(out.String(), "Usage:"); got != tt.wantUsage {
-				t.Fatalf("usage present = %v, want %v; output: %q", got, tt.wantUsage, out.String())
-			}
-			if tt.suppress && tt.wantFailure && out.Len() != 0 {
-				t.Fatalf("error unexpectedly wrote result output: %q", out.String())
+			if !strings.Contains(out.String(), "Usage:") {
+				t.Fatalf("expected usage in output, got %q", out.String())
 			}
 		})
 	}

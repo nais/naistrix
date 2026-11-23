@@ -7,6 +7,7 @@ import (
 	"io"
 
 	"github.com/pterm/pterm"
+	"gopkg.in/yaml.v3"
 )
 
 // Error represents an error type that can be used to format error messages for end-users.
@@ -28,7 +29,7 @@ func Errorf(format string, a ...any) Error {
 
 // CodedError associates a stable machine-readable code and public message with an optional cause. Callers define their
 // own codes. The cause remains available to [errors.Is] and [errors.As], but is not included in the public message or
-// JSON output.
+// structured output.
 type CodedError struct {
 	Code    string
 	Message string
@@ -59,13 +60,15 @@ const (
 	ErrorFormatText ErrorFormat = "text"
 	// ErrorFormatJSON writes one JSON object with code and message fields.
 	ErrorFormatJSON ErrorFormat = "json"
+	// ErrorFormatYAML writes one YAML document with code and message fields.
+	ErrorFormatYAML ErrorFormat = "yaml"
 )
 
-// RenderError writes an error to w without choosing an exit status or terminating the process.
-// A nil error produces no output. JSON uses the first wrapped [CodedError]'s public
-// message and code, falling back to "error" for an empty code. Other errors use
-// code "error" and their ordinary error string. JSON messages omit terminal styling.
-// Applications remain responsible for choosing an appropriate destination and format.
+// RenderError writes an error to w without choosing an exit status or terminating the process. A nil error produces no
+// output. JSON and YAML use the first wrapped [CodedError]'s public message and code, falling back to "error" for an
+// empty code. Other errors use code "error" and their ordinary error string. JSON and YAML messages omit terminal
+// styling. A write failure is returned as-is in every format. Applications remain responsible for choosing an
+// appropriate destination and format.
 func RenderError(w io.Writer, err error, format ErrorFormat) error {
 	if err == nil {
 		return nil
@@ -75,7 +78,7 @@ func RenderError(w io.Writer, err error, format ErrorFormat) error {
 	case ErrorFormatText:
 		_, writeErr := fmt.Fprintln(w, err)
 		return writeErr
-	case ErrorFormatJSON:
+	case ErrorFormatJSON, ErrorFormatYAML:
 		code, message := "error", err.Error()
 		if coded, ok := errors.AsType[*CodedError](err); ok {
 			if coded.Code != "" {
@@ -83,13 +86,28 @@ func RenderError(w io.Writer, err error, format ErrorFormat) error {
 			}
 			message = coded.Message
 		}
-		return json.NewEncoder(w).Encode(struct {
-			Code    string `json:"code"`
-			Message string `json:"message"`
+		details := struct {
+			Code    string `json:"code" yaml:"code"`
+			Message string `json:"message" yaml:"message"`
 		}{
 			Code:    code,
 			Message: pterm.RemoveColorFromString(message),
-		})
+		}
+		var data []byte
+		var encodeErr error
+		if format == ErrorFormatJSON {
+			data, encodeErr = json.Marshal(details)
+		} else {
+			data, encodeErr = yaml.Marshal(details)
+		}
+		if encodeErr != nil {
+			return encodeErr
+		}
+		if format == ErrorFormatJSON {
+			data = append(data, '\n')
+		}
+		_, writeErr := w.Write(data)
+		return writeErr
 	default:
 		return fmt.Errorf("unsupported error format %q", format)
 	}

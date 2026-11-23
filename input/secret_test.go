@@ -31,7 +31,7 @@ func TestSecret_ReturnsValueAndMasksOutput(t *testing.T) {
 				_ = keyboard.SimulateKeyPress(keys.Enter)
 			}()
 
-			got, err := input.Secret("API token")
+			got, err := input.Secret(t.Context(), "API token")
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -65,7 +65,7 @@ func TestSecret_DoesNotChangeDefaultMask(t *testing.T) {
 		_ = keyboard.SimulateKeyPress("secret-token")
 		_ = keyboard.SimulateKeyPress(keys.Enter)
 	}()
-	if _, err := input.Secret("Token"); err != nil {
+	if _, err := input.Secret(t.Context(), "Token"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if pterm.DefaultInteractiveTextInput.Mask != previousMask {
@@ -76,7 +76,7 @@ func TestSecret_DoesNotChangeDefaultMask(t *testing.T) {
 		_ = keyboard.SimulateKeyPress("visible-name")
 		_ = keyboard.SimulateKeyPress(keys.Enter)
 	}()
-	if got, err := input.Input("Name"); err != nil {
+	if got, err := input.Input(t.Context(), "Name"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	} else if got != "visible-name" {
 		t.Errorf("unexpected value: %q", got)

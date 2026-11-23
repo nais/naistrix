@@ -24,10 +24,10 @@ const (
 )
 
 var (
-	promptArgument       = input.InputContext
-	selectArgument       = input.SelectContext[string]
-	confirmArgument      = input.ConfirmContext
-	argumentsInteractive = input.IsInteractiveContext
+	promptArgument       = input.Input
+	selectArgument       = input.Select[string]
+	confirmArgument      = input.Confirm
+	argumentsInteractive = input.IsInteractive
 )
 
 // Argument represents a positional argument for a command. All arguments for a command will be grouped together in a

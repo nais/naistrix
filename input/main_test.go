@@ -11,16 +11,16 @@ func TestPrompts_NotInteractive(t *testing.T) {
 	restore := input.SetInteractive(func() bool { return false })
 	defer restore()
 
-	if _, err := input.Input("prompt"); !errors.Is(err, input.ErrNotInteractive) {
+	if _, err := input.Input(t.Context(), "prompt"); !errors.Is(err, input.ErrNotInteractive) {
 		t.Errorf("Input: expected ErrNotInteractive, got %v", err)
 	}
-	if _, err := input.Secret("prompt"); !errors.Is(err, input.ErrNotInteractive) {
+	if _, err := input.Secret(t.Context(), "prompt"); !errors.Is(err, input.ErrNotInteractive) {
 		t.Errorf("Secret: expected ErrNotInteractive, got %v", err)
 	}
-	if _, err := input.Confirm("prompt"); !errors.Is(err, input.ErrNotInteractive) {
+	if _, err := input.Confirm(t.Context(), "prompt"); !errors.Is(err, input.ErrNotInteractive) {
 		t.Errorf("Confirm: expected ErrNotInteractive, got %v", err)
 	}
-	if _, err := input.Select("prompt", []string{"alpha", "beta"}); !errors.Is(err, input.ErrNotInteractive) {
+	if _, err := input.Select(t.Context(), "prompt", []string{"alpha", "beta"}); !errors.Is(err, input.ErrNotInteractive) {
 		t.Errorf("Select: expected ErrNotInteractive, got %v", err)
 	}
 }
@@ -39,8 +39,8 @@ func TestIsInteractive(t *testing.T) {
 			restore := input.SetInteractive(func() bool { return tt.want })
 			defer restore()
 
-			if got := input.IsInteractive(); got != tt.want {
-				t.Errorf("IsInteractive() = %v, want %v", got, tt.want)
+			if got := input.IsInteractive(t.Context()); got != tt.want {
+				t.Errorf("IsInteractive(ctx) = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -50,7 +50,7 @@ func TestSelect_AutoSelectSingleOptionWithoutTerminal(t *testing.T) {
 	restore := input.SetInteractive(func() bool { return false })
 	defer restore()
 
-	result, err := input.Select("prompt", []string{"only"}, input.SelectWithAutoSelectSingleOption())
+	result, err := input.Select(t.Context(), "prompt", []string{"only"}, input.SelectWithAutoSelectSingleOption())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

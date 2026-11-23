@@ -35,7 +35,7 @@ func main() {
 			Name:  "confirm",
 			Title: "Ask user for confirmation before continuing.",
 			RunFunc: func(ctx context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
-				if ok, err := input.ConfirmContext(ctx, "Are you sure?"); err != nil {
+				if ok, err := input.Confirm(ctx, "Are you sure?"); err != nil {
 					return fmt.Errorf("unable to get confirmation: %w", err)
 				} else if !ok {
 					out.Println("We will not continue.")
@@ -50,7 +50,7 @@ func main() {
 			Name:  "input",
 			Title: "Prompt the user for a free-form string value.",
 			RunFunc: func(ctx context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
-				name, err := input.InputContext(ctx, "What is your name?")
+				name, err := input.Input(ctx, "What is your name?")
 				if err != nil {
 					return fmt.Errorf("unable to get input: %w", err)
 				}
@@ -63,7 +63,7 @@ func main() {
 			Name:  "secret",
 			Title: "Collect sensitive text with asterisk masking.",
 			RunFunc: func(ctx context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
-				token, err := input.SecretContext(ctx, "API token")
+				token, err := input.Secret(ctx, "API token")
 				if err != nil {
 					return fmt.Errorf("unable to get secret: %w", err)
 				}
@@ -80,7 +80,7 @@ func main() {
 			Name:  "select",
 			Title: "Prompt the user to select a value from a list.",
 			RunFunc: func(ctx context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
-				team, err := input.SelectContext(ctx, "Select a team", []Team{
+				team, err := input.Select(ctx, "Select a team", []Team{
 					{Name: "team-1", Members: 4},
 					{Name: "team-2", Members: 7},
 					{Name: "team-3", Members: 3},
@@ -97,7 +97,7 @@ func main() {
 			Name:  "select-single-option",
 			Title: "Prompt the user to select a value from a list.",
 			RunFunc: func(ctx context.Context, _ *naistrix.Arguments, out *naistrix.OutputWriter) error {
-				team, err := input.SelectContext(ctx, "Select a team", []Team{
+				team, err := input.Select(ctx, "Select a team", []Team{
 					{Name: "team-1", Members: 4},
 				}, input.SelectWithAutoSelectSingleOption())
 				if err != nil {

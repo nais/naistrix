@@ -23,13 +23,8 @@ type confirmOptions struct {
 
 // Confirm prompts the user with a yes/no question and returns the response. The question will get a " [y/N]" suffix
 // automatically.
-func Confirm(prompt string, opts ...ConfirmOptionFunc) (bool, error) {
-	return ConfirmContext(context.Background(), prompt, opts...)
-}
-
-// ConfirmContext is [Confirm] with invocation-scoped interaction policy and a cancellation check before prompting.
 // Disabled interaction returns [ErrNotInteractive], even when the default answer is true.
-func ConfirmContext(ctx context.Context, prompt string, opts ...ConfirmOptionFunc) (bool, error) {
+func Confirm(ctx context.Context, prompt string, opts ...ConfirmOptionFunc) (bool, error) {
 	options := &confirmOptions{
 		defaultValue: false,
 	}
@@ -41,7 +36,7 @@ func ConfirmContext(ctx context.Context, prompt string, opts ...ConfirmOptionFun
 	if err := ctx.Err(); err != nil {
 		return false, err
 	}
-	if !IsInteractiveContext(ctx) {
+	if !IsInteractive(ctx) {
 		return false, ErrNotInteractive
 	}
 

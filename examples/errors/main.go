@@ -8,9 +8,16 @@ import (
 	"github.com/nais/naistrix"
 )
 
-func run() error {
+type applicationFlags struct {
+	ErrorFormat string `name:"error-format" usage:"Error format: text, json, or yaml."`
+}
+
+func run(flags *applicationFlags) error {
 	app, _, err := naistrix.NewApplication("example", "Example application with structured errors", "v0.0.0")
 	if err != nil {
+		return err
+	}
+	if err := app.AddGlobalFlags(flags); err != nil {
 		return err
 	}
 	if err := app.AddCommand(&naistrix.Command{
@@ -26,8 +33,16 @@ func run() error {
 }
 
 func main() {
-	if err := run(); err != nil {
-		if renderErr := naistrix.RenderError(os.Stderr, err, naistrix.ErrorFormatJSON); renderErr != nil {
+	flags := &applicationFlags{ErrorFormat: string(naistrix.ErrorFormatJSON)}
+	if err := run(flags); err != nil {
+		format := naistrix.ErrorFormat(flags.ErrorFormat)
+		switch format {
+		case naistrix.ErrorFormatText, naistrix.ErrorFormatJSON, naistrix.ErrorFormatYAML:
+		default:
+			_, _ = fmt.Fprintf(os.Stderr, "invalid --error-format %q: choose text, json, or yaml\n", format)
+			os.Exit(1)
+		}
+		if renderErr := naistrix.RenderError(os.Stderr, err, format); renderErr != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "cannot render error: %v\n", renderErr)
 		}
 		os.Exit(1)

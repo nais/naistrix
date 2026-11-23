@@ -20,6 +20,10 @@ Naistrix is an opinionated Go library for building CLI applications, wrapping [C
   - `mise run test`: Run tests with coverage and race detection (`mise/tasks/test.sh`)
   - `mise run check:golangci-lint`, `check:govet`, `check:govulncheck`, etc. for static analysis and security
 - **Conventional Commits**: All commits must follow [conventional commit](https://www.conventionalcommits.org/en/v1.0.0/) style. A commit-msg Git hook is provided (`script/conventional-commit-hook.sh`).
+- **Commit Message Length**: Keep the subject at most 50 characters, including
+  the Conventional Commit prefix. Wrap body and footer lines at 72 characters,
+  including `BREAKING CHANGE` descriptions. Separate the subject, body, and
+  footers with blank lines. Check these limits before committing.
 - **Examples**: The `examples/` directory contains self-contained usage examples for all major features (flags, arguments, aliases, output, deprecation, etc.). When adding new features, include an example here.
 
 ## Project Conventions & Patterns

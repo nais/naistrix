@@ -160,7 +160,7 @@ func (a *Application) GenerateDocs(opts ...GenerateDocsOptionFunc) error {
 		_ = root.Close()
 	}()
 
-	w := NewOutputWriter(options.outputWriter, new(OutputVerbosityLevelNormal))
+	w := NewOutputWriter(options.outputWriter, options.outputWriter, new(OutputVerbosityLevelNormal))
 	for _, cmd := range a.commands {
 		if err := generateDocsForCommand(cmd, root, options.strict, w); err != nil {
 			return fmt.Errorf("failed to generate docs for command %q: %v", cmd.Name, err)

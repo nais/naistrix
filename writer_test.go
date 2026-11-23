@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"path/filepath"
 	"strings"
@@ -15,12 +14,20 @@ import (
 )
 
 func TestOutputWriter_SeparateDiagnostics(t *testing.T) {
-	for _, diagnosticsEnabled := range []bool{false, true} {
-		t.Run(fmt.Sprintf("separate=%t", diagnosticsEnabled), func(t *testing.T) {
+	for _, merged := range []bool{false, true} {
+		name := "separate"
+		if merged {
+			name = "merged"
+		}
+		t.Run(name, func(t *testing.T) {
 			var result, diagnostics bytes.Buffer
-			options := []naistrix.ApplicationOptionFunc{naistrix.ApplicationWithWriter(&result)}
-			if diagnosticsEnabled {
-				options = append(options, naistrix.ApplicationWithDiagnosticWriter(&diagnostics))
+			var diagnosticWriter io.Writer = &diagnostics
+			if merged {
+				diagnosticWriter = &result
+			}
+			options := []naistrix.ApplicationOptionFunc{
+				naistrix.ApplicationWithWriter(&result),
+				naistrix.ApplicationWithDiagnosticWriter(diagnosticWriter),
 			}
 			app, flags, err := naistrix.NewApplication("streamtest", "Output streams", "v0.0.0", options...)
 			if err != nil {
@@ -50,7 +57,7 @@ func TestOutputWriter_SeparateDiagnostics(t *testing.T) {
 				t.Fatal(err)
 			}
 			messages := result.String()
-			if diagnosticsEnabled {
+			if !merged {
 				messages = diagnostics.String()
 				var value map[string]string
 				decoder := json.NewDecoder(&result)
@@ -61,7 +68,7 @@ func TestOutputWriter_SeparateDiagnostics(t *testing.T) {
 					t.Fatalf("unexpected output after JSON result: %v", err)
 				}
 			} else if diagnostics.Len() != 0 {
-				t.Fatalf("legacy output unexpectedly used a separate stream: %q", diagnostics.String())
+				t.Fatalf("merged output unexpectedly used a separate stream: %q", diagnostics.String())
 			}
 			for _, message := range []string{"Initializing configuration", "hook warning", "saved", "saved 1", "loaded", "loaded 1", "warning", "warning 1", "diagnostic", "diagnostic 1", "verbose", "verbose 1", "debug", "debug 1", "trace", "trace 1"} {
 				if !strings.Contains(messages, message) {
@@ -75,8 +82,8 @@ func TestOutputWriter_SeparateDiagnostics(t *testing.T) {
 func TestOutputWriter_PlainResultsUseTheirOwnWriter(t *testing.T) {
 	var first, second, diagnostics bytes.Buffer
 	level := naistrix.OutputVerbosityLevelNormal
-	out := naistrix.NewOutputWriterWithDiagnostics(&first, &diagnostics, &level)
-	_ = naistrix.NewOutputWriter(&second, &level)
+	out := naistrix.NewOutputWriter(&first, &diagnostics, &level)
+	_ = naistrix.NewOutputWriter(&second, &second, &level)
 	out.Println("first").Printf("result %d\n", 1)
 	out.Warnln("separate diagnostic")
 	if first.String() != "first\nresult 1\n" || second.Len() != 0 {
@@ -121,7 +128,8 @@ func TestOutputWriter_ConditionalOutput(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var buf bytes.Buffer
-			app, _, err := naistrix.NewApplication("app", "title", "v0.0.0", naistrix.ApplicationWithWriter(&buf))
+			app, _, err := naistrix.NewApplication("app", "title", "v0.0.0",
+				naistrix.ApplicationWithWriter(&buf), naistrix.ApplicationWithDiagnosticWriter(&buf))
 			if err != nil {
 				t.Fatalf("unable to create application: %v", err)
 			}
@@ -161,7 +169,8 @@ func TestOutputWriter_OutputStyles(t *testing.T) {
 	defer pterm.EnableStyling()
 
 	var buf bytes.Buffer
-	app, _, err := naistrix.NewApplication("app", "title", "v0.0.0", naistrix.ApplicationWithWriter(&buf))
+	app, _, err := naistrix.NewApplication("app", "title", "v0.0.0",
+		naistrix.ApplicationWithWriter(&buf), naistrix.ApplicationWithDiagnosticWriter(&buf))
 	if err != nil {
 		t.Fatalf("unable to create application: %v", err)
 	}

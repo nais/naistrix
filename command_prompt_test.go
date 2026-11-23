@@ -41,8 +41,9 @@ func TestCommandRejectsBlankPromptAnswers(t *testing.T) {
 				answers = answers[1:]
 				return answer, nil
 			}
-			var output bytes.Buffer
-			app, _, err := NewApplication("app", "title", "v0.0.0", ApplicationWithWriter(&output))
+			var output, diagnostics bytes.Buffer
+			app, _, err := NewApplication("app", "title", "v0.0.0",
+				ApplicationWithWriter(&output), ApplicationWithDiagnosticWriter(&diagnostics))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -63,8 +64,11 @@ func TestCommandRejectsBlankPromptAnswers(t *testing.T) {
 			if len(answers) != 0 || !reflect.DeepEqual(got, []string{" hello "}) {
 				t.Errorf("got %v, remaining answers: %v", got, answers)
 			}
-			if count := strings.Count(output.String(), "A value is required"); count != 2 {
-				t.Errorf("expected 2 warnings, got %d: %s", count, output.String())
+			if count := strings.Count(diagnostics.String(), "A value is required"); count != 2 {
+				t.Errorf("expected 2 warnings, got %d: %s", count, diagnostics.String())
+			}
+			if output.Len() != 0 {
+				t.Errorf("prompt warnings leaked into results: %q", output.String())
 			}
 		})
 	}
@@ -339,7 +343,7 @@ func TestRepeatableTextCollectionError(t *testing.T) {
 		return "", wantError
 	}
 	var output bytes.Buffer
-	values, err := (Argument{Name: "word", Prompt: "Enter a word", Repeatable: true}).promptValues(context.Background(), NewOutputWriter(&output, new(Count)), 1)
+	values, err := (Argument{Name: "word", Prompt: "Enter a word", Repeatable: true}).promptValues(context.Background(), NewOutputWriter(&output, &output, new(Count)), 1)
 	if !errors.Is(err, wantError) || values != nil || calls != 2 {
 		t.Fatalf("got values %v, error %v, calls %d", values, err, calls)
 	}

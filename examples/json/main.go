@@ -38,7 +38,6 @@ func main() {
 		"example",
 		"Example application with JSON output",
 		"v0.0.0",
-		naistrix.ApplicationWithDiagnosticWriter(os.Stderr),
 	)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "error when creating application: %v\n", err)

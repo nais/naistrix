@@ -12,8 +12,8 @@ import (
 // PreRunHook is a named hook for work such as authentication, registered application-wide with
 // [ApplicationWithPreRunHooks] or on a command with [Command.PreRunHooks]. Application hooks run first, followed by
 // command hooks from ancestor to descendant, in registration order within each scope. Hooks run after configuration
-// and all flags on the selected command path are synchronized, but before flag validation, argument choices, prompts,
-// argument validation, and [Command.RunFunc]. An error stops execution and is returned unchanged.
+// and all flags on the selected command path are synchronized, but before [Command.WizardFunc], flag validation,
+// argument choices, prompts, argument validation, and [Command.RunFunc]. An error stops execution and is returned unchanged.
 //
 // Hooks do not run for help, version output, shell completion, or commands that only display subcommands. A top-level
 // alias runs the target command's hooks once. Deprecated commands run hooks before their replacement prompt; an
@@ -76,20 +76,13 @@ func validateCommandPreRunHooks(cmd *Command, parent string, inherited []PreRunH
 	return nil
 }
 
-func (a *Application) registerCommandDefinitions(cmd *Command) {
-	a.commandDefinitions[cmd.cobraCmd] = cmd
-	for _, sub := range cmd.SubCommands {
-		a.registerCommandDefinitions(sub)
-	}
-}
-
 // prepareCommand synchronizes the entire selected command path before invoking hooks, so even early hooks and parent
 // validators can use the leaf command's flags. Cobra-generated commands and alias wrappers have no definition and skip
 // hooks.
 func (a *Application) prepareCommand(cmd *cobra.Command) error {
 	var path []*Command
 	for co := cmd; co != nil; co = co.Parent() {
-		if definition, ok := a.commandDefinitions[co]; ok {
+		if definition, ok := a.registry.commands[co]; ok {
 			path = append(path, definition)
 		}
 	}
@@ -103,7 +96,7 @@ func (a *Application) prepareCommand(cmd *cobra.Command) error {
 		skipped = append(skipped, definition.SkipPreRunHooks...)
 		hooks = append(hooks, definition.PreRunHooks...)
 	}
-	if _, ok := a.commandDefinitions[cmd]; !ok || cmd.HasSubCommands() {
+	if _, ok := a.registry.commands[cmd]; !ok || cmd.HasSubCommands() {
 		return nil
 	}
 	for _, definition := range path {

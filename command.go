@@ -9,6 +9,7 @@ import (
 
 	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/nais/naistrix/input"
+	"github.com/nais/naistrix/wizardoption"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -68,9 +69,20 @@ type Command struct {
 	// that only display subcommands. A nil callback adds no skips.
 	SkipPreRunHooksFunc SkipPreRunHooksFunc
 
+	// WizardFunc collects interactive input after pre-run hooks when no positional arguments or explicit
+	// input-affecting flags are supplied. It updates the shared flag struct and returns
+	// complete positional arguments. It requires RunFunc and cannot be used with
+	// SubCommands or Deprecated. It never runs during help, completion, or non-interactive execution.
+	WizardFunc WizardFunc
+
+	// WizardOptions configures the wizard. Command preview is enabled by default.
+	WizardOptions []wizardoption.Option
+
 	// ValidateFlagsFunc runs after flags are synchronized and all applicable pre-run hooks have run, before resolving
-	// argument choices or prompts. It also runs before positional argument completion, but not flag-value completion.
-	// Parent validators run for their descendants too.
+	// argument choices or prompts.
+	// For wizard invocations, it runs after the wizard has collected input.
+	// It also runs before positional argument completion, but not flag-value completion. Parent validators run for
+	// their descendants too.
 	ValidateFlagsFunc ValidateFlagsFunc
 
 	// ValidateArgsFunc runs after argument resolution and before [Command.RunFunc]. It is not called during completion.
@@ -128,6 +140,11 @@ type CommandExample struct {
 // The [Arguments] parameter holds the arguments specified by the user, and all output should be generated using the
 // [OutputWriter].
 type RunFunc func(ctx context.Context, args *Arguments, out *OutputWriter) error
+
+// WizardFunc collects input for a command using its shared flag struct and returns
+// positional argument values in declaration order. Returned values are validated
+// without automatic prompting for missing arguments. Returning an error prevents execution.
+type WizardFunc func(ctx context.Context, out *OutputWriter) ([]string, error)
 
 // cobraExample generates a formatted string of examples suitable for the underlying cobra.Command.
 func (c *Command) cobraExample(prefix string) (string, error) {
@@ -261,7 +278,7 @@ func (c *Command) cobraLong() string {
 }
 
 // cobraRun wraps the RunFunc of the command into a function that can be used by the underlying cobra.Command.
-func (c *Command) cobraRun(out *OutputWriter) func(*cobra.Command, []string) error {
+func (c *Command) cobraRun(out *OutputWriter, registry *commandRegistry) func(*cobra.Command, []string) error {
 	if len(c.SubCommands) > 0 {
 		return func(cmd *cobra.Command, args []string) error {
 			if err := cobra.NoArgs(cmd, args); err != nil {
@@ -327,7 +344,15 @@ func (c *Command) cobraRun(out *OutputWriter) func(*cobra.Command, []string) err
 	}
 
 	return func(cmd *cobra.Command, args []string) error {
-		prompt := len(args) < len(c.Args) && !c.DisableArgumentPrompts && argumentsInteractive(cmd.Context())
+		wizard := registry.wizardTarget == cmd
+		if wizard {
+			var err error
+			args, err = c.collectWizardInput(cmd, out, registry)
+			if err != nil {
+				return err
+			}
+		}
+		prompt := !wizard && len(args) < len(c.Args) && !c.DisableArgumentPrompts && argumentsInteractive(cmd.Context())
 		resolved, err := c.resolveArguments(cmd.Context(), args, out, prompt)
 		if err != nil {
 			return err
@@ -335,6 +360,12 @@ func (c *Command) cobraRun(out *OutputWriter) func(*cobra.Command, []string) err
 
 		if err := c.validateArgumentValues(cmd, resolved); err != nil {
 			return err
+		}
+		if wizard {
+			if err := cmd.Context().Err(); err != nil {
+				return err
+			}
+			c.printWizardPreview(cmd, resolved, out, registry)
 		}
 
 		// Silence the usage for errors that might occur in the RunFunc of the command
@@ -392,12 +423,18 @@ func (c *Command) validateDefinition() error {
 	if c.RunFunc == nil && len(c.SubCommands) == 0 && c.Deprecated == nil {
 		return fmt.Errorf("either RunFunc, SubCommands or Deprecated must be set for command: %v", c.Name)
 	}
+	if c.WizardFunc != nil && (c.RunFunc == nil || len(c.SubCommands) > 0 || c.Deprecated != nil) {
+		return fmt.Errorf("command %q: WizardFunc requires RunFunc and cannot be used with SubCommands or Deprecated", c.Name)
+	}
+	if len(c.WizardOptions) > 0 && c.WizardFunc == nil {
+		return fmt.Errorf("command %q: WizardOptions requires WizardFunc", c.Name)
+	}
 
 	return c.validateArgumentDefinitions()
 }
 
 // init validates and initializes the cobra.Command.
-func (c *Command) init(cmd string, out *OutputWriter, usageTemplate string, config *viper.Viper, syncInheritedConfigAndFlags syncConfigAndFlagsFunc, validateInheritedFlags ValidateFlagsFunc, preparers completionPreparers) error {
+func (c *Command) init(cmd string, out *OutputWriter, usageTemplate string, config *viper.Viper, syncInheritedConfigAndFlags syncConfigAndFlagsFunc, validateInheritedFlags ValidateFlagsFunc, registry *commandRegistry) error {
 	if err := c.validateDefinition(); err != nil {
 		return err
 	}
@@ -432,9 +469,15 @@ func (c *Command) init(cmd string, out *OutputWriter, usageTemplate string, conf
 		Short:             c.cobraShort(),
 		Long:              c.cobraLong(),
 		GroupID:           c.Group,
-		RunE:              c.cobraRun(out),
-		ValidArgsFunction: preparers.wrapArgumentCompletion(c.autocomplete()),
+		RunE:              c.cobraRun(out, registry),
+		ValidArgsFunction: registry.wrapArgumentCompletion(c.autocomplete()),
 		PersistentPreRunE: func(co *cobra.Command, args []string) error {
+			// Flags and pre-run hooks are prepared by the application's root hook. Defer validators
+			// until the wizard has supplied the input those validators may require.
+			if registry.wizardTarget == co {
+				return nil
+			}
+
 			if co.HasSubCommands() {
 				// commands with subcommands does not have their own RunFunc, so we can skip validation
 				return nil
@@ -456,7 +499,8 @@ func (c *Command) init(cmd string, out *OutputWriter, usageTemplate string, conf
 			return nil
 		},
 	}
-	preparers[c.cobraCmd] = completionPreparation{
+	registry.commands[c.cobraCmd] = c
+	registry.preparations[c.cobraCmd] = completionPreparation{
 		syncFlags:     syncConfigAndFlags,
 		validateFlags: validateCompletionFlags,
 	}
@@ -472,17 +516,17 @@ func (c *Command) init(cmd string, out *OutputWriter, usageTemplate string, conf
 		c.cobraCmd.SetUsageTemplate(usageTemplate)
 	}
 
-	if err := setupFlags(c.cobraCmd, c.Args, c.Flags, c.cobraCmd.Flags(), preparers); err != nil {
+	if err := setupFlags(c.cobraCmd, c.Args, c.Flags, c.cobraCmd.Flags(), registry); err != nil {
 		return fmt.Errorf("failed to setup flags: %w", err)
 	}
 
-	if err := setupFlags(c.cobraCmd, c.Args, c.StickyFlags, c.cobraCmd.PersistentFlags(), preparers); err != nil {
+	if err := setupFlags(c.cobraCmd, c.Args, c.StickyFlags, c.cobraCmd.PersistentFlags(), registry); err != nil {
 		return fmt.Errorf("failed to setup persistent flags: %w", err)
 	}
 
 	commandsAndAliases := make([]string, 0)
 	for _, sub := range c.SubCommands {
-		if err := sub.init(cmd, out, usageTemplate, config, syncConfigAndFlags, validateCompletionFlags, preparers); err != nil {
+		if err := sub.init(cmd, out, usageTemplate, config, syncConfigAndFlags, validateCompletionFlags, registry); err != nil {
 			return err
 		}
 		c.cobraCmd.AddCommand(sub.cobraCmd)

@@ -218,12 +218,12 @@ func TestCommandPreRunHookDefinitions(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			app := newHookApplication(t, tt.global...)
-			registeredCommands, registeredDefinitions := len(app.commands), len(app.commandDefinitions)
+			registeredCommands, registeredDefinitions := len(app.commands), len(app.registry.commands)
 			err := app.AddCommand(&Command{Name: "valid", Title: "Valid", RunFunc: hookNoop}, tt.command)
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
 				t.Fatalf("error = %v, want %q", err, tt.want)
 			}
-			if len(app.commands) != registeredCommands || len(app.commandDefinitions) != registeredDefinitions {
+			if len(app.commands) != registeredCommands || len(app.registry.commands) != registeredDefinitions {
 				t.Error("invalid hooks partially registered the command batch")
 			}
 			if err := app.AddCommand(&Command{Name: "valid", Title: "Valid", RunFunc: hookNoop}); err != nil {

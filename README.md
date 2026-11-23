@@ -16,19 +16,6 @@ go get github.com/nais/naistrix@latest
 
 Please have a look at the [examples](examples/) directory for usage examples.
 
-### Result and diagnostic output
-
-Output uses a single destination by default, preserving existing applications.
-Use `ApplicationWithDiagnosticWriter(os.Stderr)` to send success, info, warning,
-error, verbose, debug and trace messages to stderr while keeping JSON, YAML,
-tables and plain `Print` output on the result writer (stdout by default).
-This also separates diagnostics emitted by configuration loading and pre-run hooks.
-
-Standalone writers can use `NewOutputWriterWithDiagnostics` with two destinations.
-The [JSON example](examples/json/) demonstrates this separation. Commands must
-still select their result format and avoid writing human-oriented result text
-when returning JSON; separating diagnostics does not serialize arbitrary output.
-
 ### Application lifecycle
 
 An `Application` is single-use: create it, register commands and flags, then call

@@ -16,21 +16,13 @@ type OutputWriter struct {
 	level            *Count
 }
 
-// NewOutputWriter creates an output writer that sends results and diagnostics to writer.
-func NewOutputWriter(writer io.Writer, level *Count) *OutputWriter {
-	return NewOutputWriterWithDiagnostics(writer, writer, level)
-}
-
-// NewOutputWriterWithDiagnostics creates an output writer with separate result and diagnostic destinations.
-// Print, table, JSON and YAML output goes to writer. Status messages and verbosity-controlled output go to diagnostics.
-// A nil diagnostics destination uses writer, preserving the behavior of [NewOutputWriter].
-func NewOutputWriterWithDiagnostics(writer, diagnostics io.Writer, level *Count) *OutputWriter {
-	if diagnostics == nil {
-		diagnostics = writer
-	}
-	pterm.SetDefaultOutput(writer)
+// NewOutputWriter creates an output writer with explicit result and diagnostic destinations.
+// Print, table, JSON and YAML output goes to results. Status messages and verbosity-controlled output go to diagnostics.
+// Both writers must be non-nil. Pass the same writer twice to merge output, or [io.Discard] to suppress a stream.
+func NewOutputWriter(results, diagnostics io.Writer, level *Count) *OutputWriter {
+	pterm.SetDefaultOutput(results)
 	return &OutputWriter{
-		writer:           writer,
+		writer:           results,
 		diagnosticWriter: diagnostics,
 		level:            level,
 	}

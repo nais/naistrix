@@ -37,10 +37,10 @@ type Application struct {
 	// version is the version of the application, used in the help output.
 	version string
 
-	// writer is the output destination for the OutputWriter used in the application. Defaults to os.Stdout.
+	// writer receives results and Cobra help output. Defaults to os.Stdout.
 	writer io.Writer
 
-	// diagnosticWriter receives status and verbosity-controlled output. A nil value uses writer.
+	// diagnosticWriter receives status, verbosity-controlled output and Cobra diagnostics. Defaults to os.Stderr.
 	diagnosticWriter io.Writer
 
 	// output is the output writer used in the application.
@@ -94,17 +94,17 @@ type ApplicationOptionFunc func(*Application)
 // topLevelAliases is a map of command names to the command it points to
 type topLevelAliases map[string]*Command
 
-// ApplicationWithWriter sets the output destination for the [OutputWriter] used in the application. This defaults to
-// [os.Stdout].
+// ApplicationWithWriter sets the destination for results and help output. A nil value defaults to [os.Stdout].
+// Diagnostics use [os.Stderr] unless overridden with [ApplicationWithDiagnosticWriter].
 func ApplicationWithWriter(w io.Writer) ApplicationOptionFunc {
 	return func(a *Application) {
 		a.writer = w
 	}
 }
 
-// ApplicationWithDiagnosticWriter sets the destination for status messages and verbosity-controlled output.
+// ApplicationWithDiagnosticWriter sets the destination for status messages, verbosity-controlled output and Cobra diagnostics.
 // Results, including JSON, YAML, tables and plain Print output, still use [ApplicationWithWriter].
-// By default all output uses the result writer, preserving existing applications' behavior.
+// A nil value defaults to [os.Stderr]. Set both writer options to the same destination to merge output.
 func ApplicationWithDiagnosticWriter(w io.Writer) ApplicationOptionFunc {
 	return func(a *Application) {
 		a.diagnosticWriter = w
@@ -167,6 +167,7 @@ func RunWithArgs(args []string) RunOptionFunc {
 
 // NewApplication creates a new [Application] with the given name, title and version. Use the available
 // [ApplicationOptionFunc] functions to configure the application to your needs.
+// Results and help use [os.Stdout]; diagnostics use [os.Stderr] unless overridden with writer options.
 // Create a new application for each CLI invocation, including in tests.
 func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) (*Application, *GlobalFlags, error) {
 	if n := strings.TrimSpace(name); n == "" || strings.Contains(n, " ") {
@@ -223,6 +224,9 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 	if app.writer == nil {
 		app.writer = os.Stdout
 	}
+	if app.diagnosticWriter == nil {
+		app.diagnosticWriter = os.Stderr
+	}
 
 	cobra.EnableTraverseRunHooks = true
 
@@ -235,7 +239,7 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 			out := app.output
 			if cmd.Name() == cobra.ShellCompRequestCmd {
-				out = NewOutputWriter(io.Discard, &app.flags.VerboseLevel)
+				out = NewOutputWriter(io.Discard, io.Discard, &app.flags.VerboseLevel)
 			}
 			if err := app.syncConfigAndFlags(cmd.Flags(), out); err != nil {
 				return err
@@ -251,6 +255,7 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 	}
 	app.rootCommand.CompletionOptions.SetDefaultShellCompDirective(cobra.ShellCompDirectiveNoFileComp)
 	app.rootCommand.SetOut(app.writer)
+	app.rootCommand.SetErr(app.diagnosticWriter)
 	// Cobra bypasses OutputWriter when rendering help. Format the completed output rather than the command metadata,
 	// so --no-colors is already parsed and documentation generation still receives the original tags.
 	help := app.rootCommand.HelpFunc()
@@ -271,7 +276,7 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 			cmd.PrintErrln(err)
 		}
 	})
-	app.output = NewOutputWriterWithDiagnostics(app.writer, app.diagnosticWriter, &app.flags.VerboseLevel)
+	app.output = NewOutputWriter(app.writer, app.diagnosticWriter, &app.flags.VerboseLevel)
 	app.completionPreparers[app.rootCommand] = completionPreparation{syncFlags: app.syncConfigAndFlagsForCompletion}
 
 	if err := setupFlags(app.rootCommand, nil, app.flags, app.rootCommand.PersistentFlags(), app.completionPreparers); err != nil {
@@ -511,7 +516,7 @@ func (a *Application) initializeConfig(flags *pflag.FlagSet, out *OutputWriter) 
 // syncConfigAndFlagsForCompletion reloads configuration and global flags after Cobra parses the target command's flags.
 // It deliberately avoids execution hooks and ordinary command output.
 func (a *Application) syncConfigAndFlagsForCompletion(cmd *cobra.Command) error {
-	return a.syncConfigAndFlags(cmd.Flags(), NewOutputWriter(io.Discard, &a.flags.VerboseLevel))
+	return a.syncConfigAndFlags(cmd.Flags(), NewOutputWriter(io.Discard, io.Discard, &a.flags.VerboseLevel))
 }
 
 // syncConfigAndFlags loads configuration and synchronizes global flags for execution or completion.

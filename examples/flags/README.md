@@ -6,7 +6,8 @@ An example application showcasing how flags are supposed to be used with Naistri
 
 The most common types for flags are supported, including, but not limited to:
 
-- `bool`: A boolean flag, can be set to true or false. If only the flag name is provided, it will be set to true. If the flag is not provided by the end user, the value will be set to true. If the default value is true, the end user must set the flag to `false` when running the command.
+- `bool`: A boolean flag. `--flag` sets it to `true`, and `--flag=false` sets it to `false`. If no value is provided, it uses the struct field's default (`false` unless initialized to `true`).
+- `*bool`: An optional boolean flag. For example, `app create my-app --public` sets `Public` to a pointer to `true`, and `--public=false` sets it to a pointer to `false`. With no CLI, environment, or config value, it keeps the struct field's default (`nil` unless initialized).
 - `int`: An integer flag, can be set to any integer value.
 - `string`: A string flag, can be set to any string value.
 - `[]string`: A slice of strings, accepts comma-separated values and repeated flags.

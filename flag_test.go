@@ -11,6 +11,88 @@ import (
 	"github.com/nais/naistrix"
 )
 
+func TestOptionalBoolFlags(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		args         []string
+		env          string
+		config       string
+		defaultValue *bool
+		want         *bool
+	}{
+		{name: "omitted"},
+		{name: "bare flag", args: []string{"--public"}, want: new(true)},
+		{name: "explicit true", args: []string{"--public=true"}, want: new(true)},
+		{name: "explicit false", args: []string{"--public=false"}, want: new(false)},
+		{name: "last flag wins", args: []string{"--public", "--public=false"}, want: new(false)},
+		{name: "bare shorthand", args: []string{"-p"}, want: new(true)},
+		{name: "explicit false shorthand", args: []string{"-p=false"}, want: new(false)},
+		{name: "initialized true", defaultValue: new(true), want: new(true)},
+		{name: "initialized false", defaultValue: new(false), want: new(false)},
+		{name: "unrelated config", config: "other: true\n"},
+		{name: "config true", config: "public: true\n", want: new(true)},
+		{name: "config false overrides default", config: "public: false\n", defaultValue: new(true), want: new(false)},
+		{name: "environment only", env: "true", want: new(true)},
+		{name: "environment overrides config", env: "false", config: "public: true\n", want: new(false)},
+		{name: "CLI overrides environment and config", args: []string{"--public=false"}, env: "true", config: "public: true\n", want: new(false)},
+	} {
+		for _, scope := range []string{"command", "sticky", "global"} {
+			t.Run(tc.name+"/"+scope, func(t *testing.T) {
+				t.Setenv("TEST_PUBLIC", tc.env)
+				app, _, err := naistrix.NewApplication("test", "Test application", "v0.0.0")
+				if err != nil {
+					t.Fatal(err)
+				}
+				flags := &struct {
+					Public *bool `short:"p"`
+				}{Public: tc.defaultValue}
+				called := false
+				child := &naistrix.Command{
+					Name: "child", Title: "Test optional boolean flags",
+					RunFunc: func(_ context.Context, _ *naistrix.Arguments, _ *naistrix.OutputWriter) error {
+						called = true
+						if flags.Public == nil && tc.want != nil {
+							t.Errorf("public is nil, want %t", *tc.want)
+						} else if flags.Public != nil && tc.want == nil {
+							t.Errorf("public = %t, want nil", *flags.Public)
+						} else if flags.Public != nil && *flags.Public != *tc.want {
+							t.Errorf("public = %t, want %t", *flags.Public, *tc.want)
+						}
+						return nil
+					},
+				}
+				parent := &naistrix.Command{Name: "parent", Title: "Parent", SubCommands: []*naistrix.Command{child}}
+				switch scope {
+				case "command":
+					child.Flags = flags
+				case "sticky":
+					parent.StickyFlags = flags
+				case "global":
+					if err := app.AddGlobalFlags(flags); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if err := app.AddCommand(parent); err != nil {
+					t.Fatal(err)
+				}
+				configPath := filepath.Join(t.TempDir(), "config.yaml")
+				if tc.config != "" {
+					if err := os.WriteFile(configPath, []byte(tc.config), 0o600); err != nil {
+						t.Fatal(err)
+					}
+				}
+				args := []string{"--config", configPath, "parent", "child"}
+				if err := app.Run(naistrix.RunWithArgs(append(args, tc.args...))); err != nil {
+					t.Fatal(err)
+				}
+				if !called {
+					t.Fatal("command was not run")
+				}
+			})
+		}
+	}
+}
+
 func TestStringArrayFlags(t *testing.T) {
 	for _, tc := range []struct {
 		name   string

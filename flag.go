@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -82,6 +83,28 @@ type FileAutoCompleter interface {
 	FileExtensions() (extensions []string)
 }
 
+// optionalBoolValue leaves the destination nil until a value is supplied.
+type optionalBoolValue struct {
+	destination **bool
+}
+
+func (b optionalBoolValue) Set(s string) error {
+	value, err := strconv.ParseBool(s)
+	if err != nil {
+		return err
+	}
+	*b.destination = new(value)
+	return nil
+}
+
+func (b optionalBoolValue) String() string {
+	value := *b.destination
+	return strconv.FormatBool(value != nil && *value)
+}
+
+func (optionalBoolValue) Type() string     { return "bool" }
+func (optionalBoolValue) IsBoolFlag() bool { return true }
+
 func setupFlag(name, short, usage string, value any, flags *pflag.FlagSet) error {
 	if len(short) > 1 {
 		return fmt.Errorf("short flag must be a single character")
@@ -96,6 +119,9 @@ func setupFlag(name, short, usage string, value any, flags *pflag.FlagSet) error
 		flags.StringVarP(ptr, name, short, *ptr, usage)
 	case *bool:
 		flags.BoolVarP(ptr, name, short, *ptr, usage)
+	case **bool:
+		flag := flags.VarPF(optionalBoolValue{destination: ptr}, name, short, usage)
+		flag.NoOptDefVal = "true"
 	case *uint:
 		flags.UintVarP(ptr, name, short, *ptr, usage)
 	case *[]string:
@@ -313,6 +339,10 @@ func setValue(v reflect.Value, configKey string, config *viper.Viper) {
 		}
 	case reflect.Bool:
 		v.SetBool(config.GetBool(configKey))
+	case reflect.Pointer:
+		if v.Type() == reflect.TypeFor[*bool]() {
+			v.Set(reflect.ValueOf(new(config.GetBool(configKey))))
+		}
 	case reflect.Int, reflect.Int64:
 		if v.Type() == reflect.TypeFor[time.Duration]() {
 			v.Set(reflect.ValueOf(config.GetDuration(configKey)))

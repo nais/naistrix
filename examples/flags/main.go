@@ -23,6 +23,7 @@ type CreateFlags struct {
 	*GlobalFlags
 	Resources Resources            `name:"resources" short:"r" usage:"Resource(s) to add to the application. Can be repeated."`
 	Set       naistrix.StringArray `name:"set" usage:"Field override as KEY=VALUE. Can be repeated; commas are preserved."`
+	Public    *bool                `name:"public" usage:"Override whether the application is public."`
 }
 
 type DeleteFlags struct {
@@ -44,6 +45,11 @@ func createCommand(globalFlags *GlobalFlags) *naistrix.Command {
 			out.Println("Created application:", args.Get("app_name"))
 			out.Println("Added resources:", strings.Join(flags.Resources, ", "))
 			out.Println("Field overrides:", flags.Set)
+			if flags.Public == nil {
+				out.Println("Visibility: use application defaults")
+			} else {
+				out.Println("Public:", *flags.Public)
+			}
 			return nil
 		},
 	}

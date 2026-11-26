@@ -366,10 +366,14 @@ func (c *Command) cobraRun(out *OutputWriter, registry *commandRegistry) func(*c
 				return err
 			}
 			c.printWizardPreview(cmd, resolved, out, registry)
+			if err := cmd.Context().Err(); err != nil {
+				return err
+			}
 		}
 
 		// Silence the usage for errors that might occur in the RunFunc of the command
 		cmd.SilenceUsage = true
+		registry.runFuncStarted = true
 		return c.RunFunc(cmd.Context(), resolved, out)
 	}
 }

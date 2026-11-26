@@ -71,7 +71,7 @@ func (c *Command) printWizardPreview(cmd *cobra.Command, args *Arguments, out *O
 	if slices.Contains(c.WizardOptions, wizardoption.WithoutCommandPreview()) {
 		return
 	}
-	preview, redacted, err := c.wizardPreview(cmd, args, registry)
+	preview, redacted, err := registry.wizardPreview(cmd, args)
 	if err != nil {
 		_, _ = fmt.Fprintf(out.diagnosticWriter, "Command preview unavailable: %s.\n", err)
 		return

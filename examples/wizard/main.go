@@ -18,7 +18,7 @@ type CreateFlags struct {
 func createCommand() *naistrix.Command {
 	flags := &CreateFlags{Replicas: 2}
 	return &naistrix.Command{
-		Name: "create", Title: "Demonstrate creating an application.", Flags: flags,
+		Name: "create", Title: "Create an application.", Flags: flags,
 		Args: []naistrix.Argument{{Name: "name"}},
 		WizardFunc: func(ctx context.Context, _ *naistrix.OutputWriter) ([]string, error) {
 			name, err := input.Input(ctx, "Application name")
@@ -26,14 +26,14 @@ func createCommand() *naistrix.Command {
 				return nil, err
 			}
 			// Defaults are already loaded. Keep the configured team when present.
-			if flags.Team == "" {
+			if strings.TrimSpace(flags.Team) == "" {
 				team, err := input.Input(ctx, "Team that owns the application")
 				if err != nil {
 					return nil, err
 				}
 				flags.Team = strings.TrimSpace(team)
 			}
-			customize, err := input.Confirm(ctx, "Customize the replica count?")
+			customize, err := input.Confirm(ctx, fmt.Sprintf("Change the replica count from %d?", flags.Replicas))
 			if err != nil {
 				return nil, err
 			}

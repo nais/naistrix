@@ -15,7 +15,8 @@ type commandRegistry struct {
 	flags        map[*pflag.Flag]flagBinding
 	// wizardTarget records the decision once, after pre-run hooks, so all validators
 	// and the execution callback agree on whether to defer validation.
-	wizardTarget *cobra.Command
+	wizardTarget   *cobra.Command
+	runFuncStarted bool
 }
 
 type completionPreparation struct {

@@ -16,14 +16,36 @@ import (
 
 const redactedWizardValue = "<REDACTED>"
 
-func (c *Command) wizardPreview(cmd *cobra.Command, args *Arguments, registry *commandRegistry) (string, bool, error) {
+func (registry *commandRegistry) wizardPreview(cmd *cobra.Command, args *Arguments) (string, bool, error) {
 	tokens := strings.Split(cmd.CommandPath(), " ")
+	positional := args.All()
+	sensitiveArgs := make([]bool, len(positional))
+	flagsByKey := make(map[string][]*pflag.Flag)
+	collectFlag := func(flag *pflag.Flag) {
+		if _, ok := registry.flags[flag]; ok {
+			key := strings.ToLower(flag.Name)
+			flagsByKey[key] = append(flagsByKey[key], flag)
+		}
+	}
+	for scope := cmd; scope != nil; scope = scope.Parent() {
+		scope.LocalFlags().VisitAll(collectFlag)
+		scope.PersistentFlags().VisitAll(collectFlag)
+		if definition := registry.commands[scope]; definition != nil && len(definition.Args) != 0 {
+			for i := range sensitiveArgs {
+				sensitiveArgs[i] = sensitiveArgs[i] || definition.Args[min(i, len(definition.Args)-1)].Sensitive
+			}
+		}
+	}
 	var flags []string
 	redacted := false
 	var flagErr error
 	cmd.Flags().VisitAll(func(flag *pflag.Flag) {
 		binding, ok := registry.flags[flag]
-		if !ok || binding.ignored || flagErr != nil {
+		if !ok || flagErr != nil {
+			return
+		}
+		binding, flagErr = wizardPreviewBinding(flag, binding, flagsByKey[strings.ToLower(flag.Name)], registry)
+		if flagErr != nil || binding.ignored {
 			return
 		}
 		values, err := wizardFlagValues(flag, binding.value)
@@ -51,11 +73,9 @@ func (c *Command) wizardPreview(cmd *cobra.Command, args *Arguments, registry *c
 		return "", false, flagErr
 	}
 
-	positional := args.All()
 	separator := false
 	for i, value := range positional {
-		index := min(i, len(c.Args)-1)
-		sensitive := index >= 0 && c.Args[index].Sensitive
+		sensitive := sensitiveArgs[i]
 		if strings.ContainsRune(value, 0) || !sensitive && !canDisplayShellToken(value) {
 			return "", false, fmt.Errorf("an argument contains a value that cannot be represented in a shell argument")
 		}
@@ -95,6 +115,23 @@ func (c *Command) wizardPreview(cmd *cobra.Command, args *Arguments, registry *c
 		}
 	}
 	return strings.Join(tokens, " "), redacted, nil
+}
+
+// Viper synchronizes the flag structs on the command path using case-insensitive
+// keys. Fields sharing a key cannot generally be set independently by replay.
+// Shadowed StringArrays skip synchronization for explicit CLI flags.
+func wizardPreviewBinding(flag *pflag.Flag, binding flagBinding, sameKey []*pflag.Flag, registry *commandRegistry) (flagBinding, error) {
+	for _, other := range sameKey {
+		if other == flag {
+			continue
+		}
+		otherBinding := registry.flags[other]
+		binding.sensitive = binding.sensitive || otherBinding.sensitive
+		if !otherBinding.ignored && (binding.ignored || other.Value.Type() == "stringArray" || !reflect.DeepEqual(binding.value.Interface(), otherBinding.value.Interface())) {
+			return flagBinding{}, fmt.Errorf("--%s cannot reproduce the values of input flags sharing the same configuration key", flag.Name)
+		}
+	}
+	return binding, nil
 }
 
 func canDisplayShellToken(value string) bool {
@@ -165,6 +202,11 @@ func wizardFlagValues(flag *pflag.Flag, value reflect.Value) ([]string, error) {
 		text = value.String()
 	case reflect.Bool:
 		text = strconv.FormatBool(value.Bool())
+	case reflect.Pointer: // The only supported pointer flag is *bool.
+		if value.IsNil() {
+			return nil, fmt.Errorf("--%s cannot explicitly unset an optional boolean", flag.Name)
+		}
+		text = strconv.FormatBool(value.Elem().Bool())
 	case reflect.Int, reflect.Int64:
 		if value.Type() == reflect.TypeFor[time.Duration]() {
 			text = time.Duration(value.Int()).String()

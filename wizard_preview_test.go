@@ -47,6 +47,8 @@ func TestWizardPreviewRoundTrip(t *testing.T) {
 		Display  displayName `name:"display-name"`
 		Team     string
 		Enabled  bool
+		Public   *bool
+		DryRun   *bool
 		Replicas int
 		Limit    uint
 		Attempts Count
@@ -58,11 +60,13 @@ func TestWizardPreviewRoundTrip(t *testing.T) {
 	initial := func() *createFlags {
 		return &createFlags{
 			Display: "before", Team: "before", Enabled: true, Replicas: 2, Limit: 9, Attempts: 1,
+			Public: new(true), DryRun: new(false),
 			Wait: time.Second, Labels: []string{"before"}, Resource: resources{"before"}, Set: StringArray{"before"},
 		}
 	}
 	want := createFlags{
 		Display: "Application's $(printf injected)", Team: "platform team", Enabled: false,
+		Public: new(false), DryRun: new(true),
 		Replicas: 0, Limit: 0, Attempts: 3, Wait: 1500 * time.Millisecond,
 		Labels:   []string{"comma,inside", "line\nbreak", "", `quote"data`},
 		Resource: resources{"postgres", "bucket"},
@@ -87,7 +91,7 @@ func TestWizardPreviewRoundTrip(t *testing.T) {
 	if err := app.Run(RunWithArgs([]string{"create"})); err != nil {
 		t.Fatal(err)
 	}
-	preview, redacted, err := cmd.wizardPreview(cmd.cobraCmd, resolved, app.registry)
+	preview, redacted, err := app.registry.wizardPreview(cmd.cobraCmd, resolved)
 	if err != nil || redacted {
 		t.Fatalf("unexpected preview result: %q, %v, %v", preview, redacted, err)
 	}
@@ -142,7 +146,7 @@ func TestWizardPreviewRedaction(t *testing.T) {
 	runs := 0
 	cmd := &Command{
 		Name: "create", Title: "Create", Flags: flags,
-		Args:       []Argument{{Name: "secret", Sensitive: true}, {Name: "more", Repeatable: true, Sensitive: true}},
+		Args:       []Argument{{Name: "secret"}, {Name: "more", Repeatable: true, Sensitive: true}},
 		WizardFunc: func(context.Context, *OutputWriter) ([]string, error) { return wantArgs, nil },
 		RunFunc: func(_ context.Context, args *Arguments, _ *OutputWriter) error {
 			runs++
@@ -152,10 +156,13 @@ func TestWizardPreviewRedaction(t *testing.T) {
 			return nil
 		},
 	}
-	if err := app.AddCommand(cmd); err != nil {
+	if err := app.AddCommand(&Command{
+		Name: "parent", Title: "Parent", SubCommands: []*Command{cmd},
+		Args: []Argument{{Name: "secret", Sensitive: true}, {Name: "more", Repeatable: true}},
+	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := app.Run(RunWithArgs([]string{"create"})); err != nil {
+	if err := app.Run(RunWithArgs([]string{"parent", "create"})); err != nil {
 		t.Fatal(err)
 	}
 	for _, secret := range []string{"scalar-secret", "slice-secret-1", "slice-secret-2", "array-secret-1", "array-secret-2", "ignored-secret", "argument-secret", "repeat-secret-1", "repeat-secret-2", "--ignored"} {
@@ -242,13 +249,14 @@ func TestWizardPreviewQuotesShellCommandWord(t *testing.T) {
 func TestWizardPreviewUnavailableStillRuns(t *testing.T) {
 	enableArgumentPrompts(t)
 	for _, disabled := range []bool{false, true} {
-		for _, reason := range []string{"empty array", "NUL flag", "NUL argument", "terminal escape"} {
+		for _, reason := range []string{"empty array", "unset optional bool", "NUL flag", "NUL argument", "terminal escape"} {
 			t.Run(reason+map[bool]string{false: "", true: " disabled"}[disabled], func(t *testing.T) {
 				app, output := newWizardApplication(t)
 				flags := &struct {
 					Resources StringArray
 					Token     string `sensitive:"true"`
-				}{Resources: StringArray{"one"}, Token: "value"}
+					Public    *bool
+				}{Resources: StringArray{"one"}, Token: "value", Public: new(true)}
 				args := []string{"app"}
 				switch reason {
 				case "empty array":
@@ -263,8 +271,13 @@ func TestWizardPreviewUnavailableStillRuns(t *testing.T) {
 				runs := 0
 				cmd := &Command{
 					Name: "create", Title: "Create", Flags: flags, Args: []Argument{{Name: "name"}},
-					WizardFunc: func(context.Context, *OutputWriter) ([]string, error) { return args, nil },
-					RunFunc:    func(context.Context, *Arguments, *OutputWriter) error { runs++; return nil },
+					WizardFunc: func(context.Context, *OutputWriter) ([]string, error) {
+						if reason == "unset optional bool" {
+							flags.Public = nil
+						}
+						return args, nil
+					},
+					RunFunc: func(context.Context, *Arguments, *OutputWriter) error { runs++; return nil },
 				}
 				if disabled {
 					cmd.WizardOptions = []wizardoption.Option{wizardoption.WithoutCommandPreview()}
@@ -360,32 +373,51 @@ func TestWizardEnvironmentDefault(t *testing.T) {
 
 func TestWizardPreviewFlagShadowing(t *testing.T) {
 	enableArgumentPrompts(t)
-	app, output := newWizardApplication(t)
-	local := &struct{ Team string }{Team: "local-team"}
-	if err := app.AddCommand(&Command{
-		Name: "parent", Title: "Parent",
-		StickyFlags: &struct{ Team string }{Team: "parent-team"},
-		SubCommands: []*Command{{
-			Name: "create", Title: "Create", Flags: local,
-			WizardFunc: func(context.Context, *OutputWriter) ([]string, error) {
-				local.Team = "wizard-team"
-				return nil, nil
-			},
-			RunFunc: func(context.Context, *Arguments, *OutputWriter) error { return nil },
-		}},
-	}); err != nil {
-		t.Fatal(err)
-	}
-	// Global flags may be registered after command definitions, and shadowed
-	// bindings must not override the actual execution target's field.
-	if err := app.AddGlobalFlags(&struct{ Team string }{Team: "global-team"}); err != nil {
-		t.Fatal(err)
-	}
-	if err := app.Run(RunWithArgs([]string{"parent", "create"})); err != nil {
-		t.Fatal(err)
-	}
-	if strings.Count(output.String(), "--team") != 1 || !strings.Contains(output.String(), "--team wizard-team") {
-		t.Errorf("unexpected shadowed flag preview: %s", output)
+	for _, tc := range []struct {
+		name string
+		team string
+		want string
+	}{
+		{name: "shared value", team: "configured-team", want: "--team '<REDACTED>'"},
+		{name: "different values", team: "wizard-team", want: "Command preview unavailable: --team"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			app, output := newWizardApplication(t)
+			t.Setenv("WIZARDTEST_TEAM", "configured-team")
+			local := &struct{ Team string }{}
+			parent := &struct{ Team string }{}
+			runs := 0
+			if err := app.AddCommand(&Command{
+				Name: "parent", Title: "Parent", StickyFlags: parent,
+				SubCommands: []*Command{{
+					Name: "create", Title: "Create", Flags: local,
+					WizardFunc: func(context.Context, *OutputWriter) ([]string, error) {
+						local.Team = tc.team
+						return nil, nil
+					},
+					RunFunc: func(context.Context, *Arguments, *OutputWriter) error {
+						runs++
+						if local.Team != tc.team || parent.Team != "configured-team" {
+							t.Error("preview changed the effective flags")
+						}
+						return nil
+					},
+				}},
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if err := app.AddGlobalFlags(&struct {
+				Team string `sensitive:"true"`
+			}{}); err != nil {
+				t.Fatal(err)
+			}
+			if err := app.Run(RunWithArgs([]string{"parent", "create"})); err != nil {
+				t.Fatal(err)
+			}
+			if runs != 1 || !strings.Contains(output.String(), tc.want) || strings.Contains(output.String(), tc.team) {
+				t.Errorf("runs %d, want %q without the flag value; output %q", runs, tc.want, output)
+			}
+		})
 	}
 }
 
@@ -445,7 +477,7 @@ func TestWizardPreviewEmptySliceOverride(t *testing.T) {
 	if err := app.Run(RunWithArgs([]string{"create"})); err != nil {
 		t.Fatal(err)
 	}
-	preview, _, err := cmd.wizardPreview(cmd.cobraCmd, resolved, app.registry)
+	preview, _, err := app.registry.wizardPreview(cmd.cobraCmd, resolved)
 	if err != nil {
 		t.Fatal(err)
 	}

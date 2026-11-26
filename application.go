@@ -238,6 +238,10 @@ func NewApplication(name, title, version string, opts ...ApplicationOptionFunc) 
 			out := app.output
 			if cmd.Name() == cobra.ShellCompRequestCmd {
 				out = NewOutputWriter(io.Discard, io.Discard, &app.flags.VerboseLevel)
+			} else if cmd.DisableFlagParsing {
+				// Top-level aliases forward raw arguments. Apply configuration and
+				// interaction policy once the target has parsed them.
+				return nil
 			}
 			if err := app.syncConfigAndFlags(cmd.Flags(), out); err != nil {
 				return err
@@ -435,10 +439,16 @@ func (a *Application) Run(opts ...RunOptionFunc) error {
 
 	var err error
 	for {
+		a.registry.runFuncStarted = false
 		a.rootCommand.SetArgs(ro.args)
 		a.executedCommand, err = a.rootCommand.ExecuteContextC(ro.ctx)
 		if err == nil {
 			return nil
+		}
+		// Only RunFunc can request a replacement. Hook, wizard, and validation
+		// errors must end execution, even if they wrap a deprecation error.
+		if !a.registry.runFuncStarted {
+			return err
 		}
 
 		if deprecatedErr, ok := errors.AsType[*DeprecatedCommandError](err); ok {

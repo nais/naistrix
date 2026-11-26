@@ -218,7 +218,7 @@ func TestWizardValidationOrderAndEffectiveDefaults(t *testing.T) {
 }
 
 func TestWizardRespectsNonInteractiveInvocation(t *testing.T) {
-	for _, source := range []string{"flag", "environment", "context"} {
+	for _, source := range []string{"flag", "environment", "context", "alias overrides environment"} {
 		t.Run(source, func(t *testing.T) {
 			app, _ := newWizardApplication(t)
 			terminalCtx := t.Context()
@@ -231,6 +231,9 @@ func TestWizardRespectsNonInteractiveInvocation(t *testing.T) {
 				t.Setenv("WIZARDTEST_NON_INTERACTIVE", "true")
 			case "context":
 				ctx = input.WithNonInteractive(ctx)
+			case "alias overrides environment":
+				t.Setenv("WIZARDTEST_NON_INTERACTIVE", "true")
+				args = []string{"new", "--non-interactive=false"}
 			}
 			previous := argumentsInteractive
 			t.Cleanup(func() { argumentsInteractive = previous })
@@ -241,15 +244,22 @@ func TestWizardRespectsNonInteractiveInvocation(t *testing.T) {
 				checks++
 				return ctx == terminalCtx || input.IsInteractive(ctx)
 			}
-			runs := 0
-			if err := app.AddCommand(&Command{
+			runs, wizards := 0, 0
+			leaf := &Command{
 				Name: "create", Title: "Create",
 				WizardFunc: func(context.Context, *OutputWriter) ([]string, error) {
-					t.Error("wizard ran when interaction was disabled")
+					wizards++
 					return nil, nil
 				},
 				RunFunc: func(context.Context, *Arguments, *OutputWriter) error { runs++; return nil },
-			}); err != nil {
+			}
+			command, wantWizards := leaf, 0
+			if source == "alias overrides environment" {
+				leaf.TopLevelAliases = []string{"new"}
+				command = &Command{Name: "parent", Title: "Parent", SubCommands: []*Command{leaf}}
+				wantWizards = 1
+			}
+			if err := app.AddCommand(command); err != nil {
 				t.Fatal(err)
 			}
 			if err := app.Run(RunWithArgs(args), RunWithContext(ctx)); err != nil {
@@ -258,18 +268,24 @@ func TestWizardRespectsNonInteractiveInvocation(t *testing.T) {
 			if runs != 1 || checks != 1 {
 				t.Errorf("RunFunc called %d times, interaction checked %d times; want one of each", runs, checks)
 			}
+			if wizards != wantWizards {
+				t.Errorf("wizard called %d times, want %d", wizards, wantWizards)
+			}
 		})
 	}
 }
 
 func TestWizardStopsOnErrors(t *testing.T) {
 	enableArgumentPrompts(t)
-	for _, failure := range []string{"callback", "missing arguments", "extra arguments", "undeclared arguments", "flags", "parent flags", "parent arguments", "choices", "arguments", "cancel before", "cancel after", "cancel during validation"} {
+	for _, failure := range []string{"callback", "callback replacement", "missing arguments", "extra arguments", "undeclared arguments", "flags", "parent flags", "parent arguments", "choices", "arguments", "cancel before", "cancel after", "cancel during validation"} {
 		t.Run(failure, func(t *testing.T) {
 			app, output := newWizardApplication(t)
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 			failed := errors.New("test failure")
+			if failure == "callback replacement" {
+				failed = &DeprecatedCommandError{Replacement: []string{"parent", "create", "app"}, ExecuteReplacement: true}
+			}
 			if failure == "cancel before" {
 				cancel()
 			}
@@ -279,7 +295,7 @@ func TestWizardStopsOnErrors(t *testing.T) {
 				WizardFunc: func(context.Context, *OutputWriter) ([]string, error) {
 					calls++
 					switch failure {
-					case "callback":
+					case "callback", "callback replacement":
 						return nil, failed
 					case "missing arguments":
 						return nil, nil
@@ -347,7 +363,7 @@ func TestWizardStopsOnErrors(t *testing.T) {
 			if strings.HasPrefix(failure, "cancel") && !errors.Is(err, context.Canceled) {
 				t.Errorf("expected cancellation, got %v", err)
 			}
-			if failure == "callback" && !errors.Is(err, failed) {
+			if strings.HasPrefix(failure, "callback") && !errors.Is(err, failed) {
 				t.Errorf("callback error was not preserved: %v", err)
 			}
 			if failure == "cancel before" && calls != 0 || failure != "cancel before" && calls != 1 {
@@ -377,6 +393,38 @@ func TestWizardWithoutCommandPreview(t *testing.T) {
 	}
 	if runs != 1 || output.Len() != 0 {
 		t.Errorf("runs %d, output %q", runs, output.String())
+	}
+}
+
+type cancelOnWrite struct{ cancel context.CancelFunc }
+
+func (w cancelOnWrite) Write(p []byte) (int, error) {
+	w.cancel()
+	return len(p), nil
+}
+
+func TestWizardCancellationWhileWritingPreview(t *testing.T) {
+	enableArgumentPrompts(t)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	app, _, err := NewApplication("wizardtest", "Wizard tests", "v0.0.0",
+		ApplicationWithWriter(io.Discard), ApplicationWithDiagnosticWriter(cancelOnWrite{cancel}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := app.AddCommand(&Command{
+		Name: "create", Title: "Create",
+		WizardFunc: func(context.Context, *OutputWriter) ([]string, error) { return nil, nil },
+		RunFunc: func(context.Context, *Arguments, *OutputWriter) error {
+			t.Error("RunFunc called after cancellation")
+			return nil
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.Run(RunWithArgs([]string{"create"}), RunWithContext(ctx)); !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected cancellation, got %v", err)
 	}
 }
 

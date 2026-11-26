@@ -1,41 +1,18 @@
 # Command wizards
 
-Set `Command.WizardFunc` to guide users through a command's inputs. The callback
-updates the same flag struct used by `RunFunc` and returns positional arguments
-in declaration order:
+The [example in `main.go`](main.go) uses `Command.WizardFunc` to collect an
+application name, a team, and a replica count. The wizard updates the same flag
+struct used by `RunFunc` and returns the positional arguments in declaration
+order. After validation, `RunFunc` prints what it would create.
 
-```go
-flags := &CreateFlags{Replicas: 2}
-
-command := &naistrix.Command{
-    Name: "create", Title: "Create an application", Flags: flags,
-    Args: []naistrix.Argument{{Name: "name"}},
-    WizardFunc: func(ctx context.Context, _ *naistrix.OutputWriter) ([]string, error) {
-        name, err := input.Input(ctx, "Application name")
-        if err != nil {
-            return nil, err
-        }
-        if flags.Team == "" {
-            flags.Team, err = input.Input(ctx, "Team")
-            if err != nil {
-                return nil, err
-            }
-        }
-        return []string{name}, nil
-    },
-    RunFunc: func(_ context.Context, args *naistrix.Arguments, out *naistrix.OutputWriter) error {
-        out.Printf("Creating %s for %s\n", args.Get("name"), flags.Team)
-        return nil
-    },
-}
-```
-
-See [main.go](main.go) for a complete example with validation and conditional
-questions. Run it from the repository root in an interactive terminal:
+Run it from the repository root in an interactive terminal:
 
 ```sh
 go run ./examples/wizard create
 ```
+
+Enter an application name and a team if prompted, then press Enter to keep the
+current replica count or choose to change it.
 
 ## When it runs
 
@@ -60,20 +37,39 @@ validation error, not additional prompts. Returning an error stops execution.
 
 ## Command preview
 
-After validation, Naistrix displays an equivalent invocation on stderr by
-default before calling `RunFunc`. The preview includes effective defaults, not
-just changed fields. For example, setting a default team skips the example's
-team question but still includes `--team platform` in the preview:
+After validation, Naistrix displays a command on stderr before calling `RunFunc`.
+It includes the effective input values, even when the wizard kept a default.
+To try this, build the executable with the name used in the preview and set a
+default team in a temporary config file:
 
 ```sh
-go run ./examples/wizard defaults set team platform
-go run ./examples/wizard create
+demo_dir=$(mktemp -d)
+go build -o "$demo_dir/wizard-example" ./examples/wizard
+"$demo_dir/wizard-example" --config "$demo_dir/config.yaml" defaults set team platform
+"$demo_dir/wizard-example" --config "$demo_dir/config.yaml" create
 ```
 
-Previews use the application's configured name (`wizard-example` here), assuming
-an installed executable, rather than reconstructing `go run`. Quoting targets
-POSIX-compatible shells, including Bash and Zsh. If an input cannot be faithfully
-represented, Naistrix explains why and omits the preview; the command still runs.
+Enter `my-app` and keep the default of two replicas. The wizard skips the team
+question and prints this command:
+
+```sh
+wizard-example create my-app --replicas 2 --team platform
+```
+
+Change the default team, then replay using the executable you built and the same
+temporary config file:
+
+```sh
+"$demo_dir/wizard-example" --config "$demo_dir/config.yaml" defaults set team other-team
+"$demo_dir/wizard-example" --config "$demo_dir/config.yaml" create my-app --replicas 2 --team platform
+```
+
+The replay still prints `Would create my-app for team platform with 2 replicas.`
+The explicit `--team` and `--replicas` values make it independent of those
+defaults. Previews use the application's configured name, even when launched with
+`go run`. Quoting targets POSIX-compatible shells, including Bash and Zsh.
+If an input cannot be represented, Naistrix explains why and runs the command
+without a preview.
 
 Disable the preview with an option from `github.com/nais/naistrix/wizardoption`:
 
